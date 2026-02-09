@@ -11,7 +11,7 @@ pip install gis-utils
 From GitHub (before publishing to PyPI):
 
 ```bash
-pip install git+https://github.com/USERNAME/gis_utils.git
+pip install git+https://github.com/Gunther-Schulz/gis_utils.git
 ```
 
 ## Usage

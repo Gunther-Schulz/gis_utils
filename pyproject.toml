@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/USERNAME/gis_utils"
+Repository = "https://github.com/Gunther-Schulz/gis_utils"
 
 [tool.setuptools.packages.find]
 where = ["src"]
