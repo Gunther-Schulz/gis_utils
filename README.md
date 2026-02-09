@@ -50,6 +50,26 @@ msp.add_lwpolyline([(0, 0), (10, 0), (10, 10)], dxfattribs={"layer": "MyLayer"})
 doc.saveas("output.dxf")
 ```
 
+### Map Object Data (OD)
+
+Attach AutoCAD Map Object Data to DXF entities (works with POINT, CIRCLE, LWPOLYLINE, etc.). Use a DXF from MAPIMPORT as template so the OD table (IRD_DSC_RECORD) exists:
+
+```python
+import ezdxf
+from gis_utils import attach_od_to_entity, encode_od_1004, get_table_handle_by_name
+
+doc = ezdxf.readfile("template_with_od_tables.dxf")
+msp = doc.modelspace()
+point = msp.add_point((100, 200))
+
+schema = ["long", "long", "string", "string", "long"]
+values = [1, feat_id, "Name", "Comment", 42]
+binary_1004 = encode_od_1004(schema, values)
+
+table_handle = get_table_handle_by_name(doc, "MyODTable") or "AE"  # fallback from template
+attach_od_to_entity(doc, point, table_handle, record_index=1, binary_1004=binary_1004)
+```
+
 ## License
 
 MIT
