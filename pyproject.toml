@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gis-utils"
-version = "0.1.0"
-description = "GIS utilities: markdown tables and DXF helpers for CAD-compatible output"
+version = "0.2.0"
+description = "GIS utilities: markdown tables, DXF helpers, and Map Object Data (OD)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
