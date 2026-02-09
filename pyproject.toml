@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gis-utils"
+version = "0.1.0"
+description = "GIS utilities: markdown tables and DXF helpers for CAD-compatible output"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "ezdxf>=1.0",
+]
+
+[project.urls]
+Repository = "https://github.com/USERNAME/gis_utils"
+
+[tool.setuptools.packages.find]
+where = ["src"]
