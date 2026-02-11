@@ -1,4 +1,4 @@
-"""GIS utilities: markdown tables and DXF helpers."""
+"""GIS utilities: markdown tables, DXF helpers, WMS-to-shape."""
 
 from gis_utils.md_table import markdown_table
 from gis_utils.dxf import new_dxf_document, ensure_layer

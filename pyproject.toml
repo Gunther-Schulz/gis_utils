@@ -11,6 +11,14 @@ requires-python = ">=3.9"
 license = { text = "MIT" }
 dependencies = [
     "ezdxf>=1.0",
+    "geopandas",
+    "rasterio",
+    "requests",
+    "numpy",
+    "shapely",
+    "Pillow",
+    "scipy",
+    "scikit-image",
 ]
 
 [project.urls]
