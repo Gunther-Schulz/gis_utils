@@ -10,11 +10,11 @@ Library (no defaults — you must specify extent or input_boundary, and one of l
   from gis_utils.wms_to_shape import run, get_bounds_from_shape
 
   # Extent from a boundary shapefile (optional buffer to expand area):
-  bounds = get_bounds_from_shape(Path("input/area.shp"), crs="EPSG:25833", buffer_m=10.0)
+  bounds = get_bounds_from_shape(Path("input/area.shp"), crs="EPSG:25833")
   gdf = run(bounds, Path("Shapes/out.shp"), wms_url="https://...", wms_layer="LayerName", line_color="green")
 
-  # Or pass input_boundary and let run() compute extent (with optional boundary_buffer_m):
-  gdf = run(None, Path("Shapes/out.shp"), input_boundary=Path("input/area.shp"), boundary_buffer_m=10.0,
+  # Or pass input_boundary and let run() compute extent:
+  gdf = run(None, Path("Shapes/out.shp"), input_boundary=Path("input/area.shp"),
             wms_url="...", wms_layer="...", line_color="green")
 
   # map_size=None auto-detects max resolution from WMS GetCapabilities (MaxWidth/MaxHeight).
@@ -23,6 +23,7 @@ Library (no defaults — you must specify extent or input_boundary, and one of l
 from __future__ import annotations
 
 import argparse
+from typing import Any
 import io
 import re
 import sys
@@ -113,22 +114,114 @@ def get_wms_max_size(wms_url: str, timeout: int = 30) -> tuple[int, int] | None:
     return None
 
 
+def _download_wms_tile(
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+    width: int,
+    height: int,
+    *,
+    wms_url: str,
+    wms_layer: str,
+    crs: str,
+    store_alpha: bool = False,
+) -> tuple[np.ndarray, Any]:
+    """
+    Perform one WMS GetMap for the given bbox and size. Return (array, transform).
+    Array shape (H, W, C) with C=3 or 4. No caching.
+    """
+    params = {
+        "SERVICE": "WMS",
+        "VERSION": "1.3.0",
+        "REQUEST": "GetMap",
+        "LAYERS": wms_layer,
+        "STYLES": "default",
+        "CRS": crs,
+        "BBOX": f"{minx},{miny},{maxx},{maxy}",
+        "WIDTH": width,
+        "HEIGHT": height,
+        "FORMAT": "image/png",
+        "TRANSPARENT": "true",
+    }
+    r = requests.get(wms_url, params=params, timeout=120)
+    r.raise_for_status()
+    ct = r.headers.get("Content-Type", "")
+    if "xml" in ct or r.content.lstrip().startswith(b"<?xml"):
+        raise RuntimeError(f"WMS returned error instead of image: {r.text[:500]}")
+    arr = np.array(Image.open(io.BytesIO(r.content)))
+    if arr.ndim == 2:
+        arr = np.stack([arr] * 3, axis=-1)
+    has_alpha = arr.ndim == 3 and arr.shape[2] == 4
+    if has_alpha and not store_alpha:
+        arr = arr[:, :, :3]
+    if store_alpha and not has_alpha:
+        alpha_band = np.full(arr.shape[:2], 255, dtype=arr.dtype)
+        arr = np.stack([arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], alpha_band], axis=-1)
+    transform = from_bounds(minx, miny, maxx, maxy, width, height)
+    return arr, transform
+
+
+def _stitch_tile_rasters(
+    tile_arrays: list[np.ndarray],
+    tile_bounds: list[tuple[float, float, float, float]],
+    full_minx: float,
+    full_miny: float,
+    full_maxx: float,
+    full_maxy: float,
+    full_width: int,
+    full_height: int,
+    nbands: int,
+) -> tuple[np.ndarray, Any]:
+    """
+    Place tile arrays into one raster for the full extent. Tiles are in row-major order
+    (row 0 left-to-right, then row 1, ...). Each tile_bounds[i] = (minx, miny, maxx, maxy).
+    Returns (array (H, W, nbands), full_transform).
+    """
+    out = np.zeros((full_height, full_width, nbands), dtype=np.uint8)
+    full_transform = from_bounds(full_minx, full_miny, full_maxx, full_maxy, full_width, full_height)
+    w_deg = full_maxx - full_minx
+    h_deg = full_maxy - full_miny
+    for tile_arr, (tminx, tminy, tmaxx, tmaxy) in zip(tile_arrays, tile_bounds):
+        tw = tile_arr.shape[1]
+        th = tile_arr.shape[0]
+        col_start_f = (tminx - full_minx) / w_deg * full_width
+        col_end_f = (tmaxx - full_minx) / w_deg * full_width
+        row_start_f = (full_maxy - tmaxy) / h_deg * full_height
+        row_end_f = (full_maxy - tminy) / h_deg * full_height
+        col_start = int(round(col_start_f))
+        col_end = int(round(col_end_f))
+        row_start_i = int(round(row_start_f))
+        row_end_i = int(round(row_end_f))
+        col_start = max(0, min(col_start, full_width))
+        col_end = max(0, min(col_end, full_width))
+        row_start_i = max(0, min(row_start_i, full_height))
+        row_end_i = max(0, min(row_end_i, full_height))
+        r_h = row_end_i - row_start_i
+        r_w = col_end - col_start
+        if r_h <= 0 or r_w <= 0:
+            continue
+        if (th, tw) != (r_h, r_w):
+            from PIL import Image as PILImage
+            tile_pil = PILImage.fromarray(tile_arr[:, :, :nbands])
+            tile_pil = tile_pil.resize((r_w, r_h), PILImage.Resampling.LANCZOS)
+            tile_arr = np.array(tile_pil)
+            if tile_arr.ndim == 2:
+                tile_arr = np.stack([tile_arr] * nbands, axis=-1)
+        else:
+            tile_arr = tile_arr[:, :, :nbands].copy()
+        out[row_start_i:row_end_i, col_start:col_end, :] = tile_arr[: r_h, : r_w, :]
+    return out, full_transform
+
+
 def get_bounds_from_shape(
     shape_path: Path | str,
     crs: str = DEFAULT_CRS,
-    buffer_m: float = 10.0,
 ) -> tuple[float, float, float, float]:
-    """Return (minx, miny, maxx, maxy) from the bounding box of the shapefile, in given CRS, optionally buffered."""
+    """Return (minx, miny, maxx, maxy) from the bounding box of the shapefile in given CRS."""
     shape_path = Path(shape_path)
     gdf = gpd.read_file(shape_path).to_crs(crs)
     minx, miny, maxx, maxy = gdf.total_bounds
-    if buffer_m > 0:
-        w, h = maxx - minx, maxy - miny
-        margin = buffer_m if (w == 0 and h == 0) else max(buffer_m, max(w, h) * 0.02)
-        minx -= margin
-        miny -= margin
-        maxx += margin
-        maxy += margin
     return float(minx), float(miny), float(maxx), float(maxy)
 
 
@@ -216,18 +309,23 @@ def download_wms_raster(
     map_size: int | None = None,
     cache_dir: Path | None = None,
     cache_key_prefix: str = "wms",
+    store_alpha: bool = False,
 ) -> Path:
     """Download WMS image for bbox, save as georeferenced GeoTIFF in cache. Returns path.
     map_size: pixels on longest side; None = auto from GetCapabilities (highest detail).
+    store_alpha: If True and image has alpha, save 4 bands (RGB + alpha) for area/opacity mode.
+    If requested size would exceed WMS max (e.g. MaxWidth/MaxHeight), downloads in tiles and stitches.
     """
     wms_url = wms_url or DEFAULT_WMS_URL
     wms_layer = wms_layer or DEFAULT_WMS_LAYER
     crs = crs or DEFAULT_CRS
     cache_dir = cache_dir or CACHE_DIR
+    cap = get_wms_max_size(wms_url)
+    max_side = min(cap) if cap else 4192
     if map_size is None:
-        cap = get_wms_max_size(wms_url)
-        map_size = min(cap) if cap else 4096
-        print(f"[download] Map size from GetCapabilities: {map_size} px (longest side)", flush=True)
+        # Auto = highest resolution: request more than one tile so tiling is used (2x on longest side)
+        map_size = 2 * max_side
+        print(f"[download] Map size auto (highest res): {map_size} px (longest side), WMS max={max_side} → tiling", flush=True)
     else:
         map_size = int(map_size)
 
@@ -243,7 +341,12 @@ def download_wms_raster(
         height = max(64, int(map_size * h_deg / longest))
     print(f"[download] Request size: {width} x {height} px for bbox ({minx:.0f}, {miny:.0f}, {maxx:.0f}, {maxy:.0f})")
 
-    cache_name = f"{cache_key_prefix}_{minx:.0f}_{miny:.0f}_{maxx:.0f}_{maxy:.0f}_{width}x{height}.tif"
+    band_suffix = "_4b" if store_alpha else ""
+    use_tiling = max(width, height) > max_side
+    if use_tiling:
+        cache_name = f"{cache_key_prefix}_{minx:.0f}_{miny:.0f}_{maxx:.0f}_{maxy:.0f}_stitched_{width}x{height}{band_suffix}.tif"
+    else:
+        cache_name = f"{cache_key_prefix}_{minx:.0f}_{miny:.0f}_{maxx:.0f}_{maxy:.0f}_{width}x{height}{band_suffix}.tif"
     cache_path = cache_dir / cache_name
     if cache_path.exists():
         size_mb = cache_path.stat().st_size / 1024 / 1024
@@ -255,53 +358,76 @@ def download_wms_raster(
             print(f"[download] WARNING: cached file exists but could not be opened: {e}")
         return cache_path
 
-    print(f"[download] Requesting GetMap from WMS (this may take a while for large areas)...")
-    params = {
-        "SERVICE": "WMS",
-        "VERSION": "1.3.0",
-        "REQUEST": "GetMap",
-        "LAYERS": wms_layer,
-        "STYLES": "default",
-        "CRS": crs,
-        "BBOX": f"{minx},{miny},{maxx},{maxy}",
-        "WIDTH": width,
-        "HEIGHT": height,
-        "FORMAT": "image/png",
-        "TRANSPARENT": "true",
-    }
-    r = requests.get(wms_url, params=params, timeout=120)
-    size_bytes = len(r.content)
-    size_mb = size_bytes / 1024 / 1024
-    content_length = r.headers.get("Content-Length")
-    print(f"[download] Response: status={r.status_code}, Content-Type={r.headers.get('Content-Type', '')}, size={size_mb:.2f} MB")
-    if content_length is not None:
-        expected = int(content_length)
-        if size_bytes == expected:
-            print(f"[download] Content-Length matches received bytes ({expected}) — full download verified.")
-        else:
-            print(f"[download] WARNING: received {size_bytes} bytes but Content-Length was {expected} — download may be incomplete.")
-    else:
-        print("[download] No Content-Length header; cannot verify full download (rely on image parsing).")
-    r.raise_for_status()
-    ct = r.headers.get("Content-Type", "")
-    if "xml" in ct or r.content.lstrip().startswith(b"<?xml"):
-        raise RuntimeError(f"WMS returned error instead of image: {r.text[:500]}")
-    print("[download] Parsing image...")
-    arr = np.array(Image.open(io.BytesIO(r.content)))
-    if arr.ndim == 2:
-        arr = np.stack([arr] * 3, axis=-1)
-    elif arr.ndim == 3 and arr.shape[2] == 4:
-        arr = arr[:, :, :3]
+    if use_tiling:
+        import math
+        ncols = max(1, math.ceil(width / max_side))
+        nrows = max(1, math.ceil(height / max_side))
+        base_w = width // ncols
+        rem_w = width % ncols
+        tile_widths = [base_w + 1] * rem_w + [base_w] * (ncols - rem_w)
+        base_h = height // nrows
+        rem_h = height % nrows
+        tile_heights = [base_h + 1] * rem_h + [base_h] * (nrows - rem_h)
+        tile_arrays = []
+        tile_bounds = []
+        ntiles = ncols * nrows
+        print(f"[download] Tiling: {ncols}x{nrows} = {ntiles} tiles (max {max_side} px per side)...")
+        for j in range(nrows):
+            for i in range(ncols):
+                tminx = minx + i * w_deg / ncols
+                tmaxx = minx + (i + 1) * w_deg / ncols
+                tminy = miny + j * h_deg / nrows
+                tmaxy = miny + (j + 1) * h_deg / nrows
+                tw, th = tile_widths[i], tile_heights[j]
+                if REQUEST_DELAY_S > 0 and (j * ncols + i) > 0:
+                    time.sleep(REQUEST_DELAY_S)
+                arr, _ = _download_wms_tile(
+                    tminx, tminy, tmaxx, tmaxy, tw, th,
+                    wms_url=wms_url, wms_layer=wms_layer, crs=crs, store_alpha=store_alpha,
+                )
+                tile_arrays.append(arr)
+                tile_bounds.append((tminx, tminy, tmaxx, tmaxy))
+        nbands = 4 if (store_alpha and tile_arrays and tile_arrays[0].shape[2] >= 4) else 3
+        print("[download] Stitching tiles...")
+        arr, transform = _stitch_tile_rasters(
+            tile_arrays, tile_bounds,
+            minx, miny, maxx, maxy, width, height, nbands,
+        )
+        print("[download] Writing georeferenced GeoTIFF to cache...")
+        with rasterio.open(
+            cache_path,
+            "w",
+            driver="GTiff",
+            height=height,
+            width=width,
+            count=nbands,
+            dtype=arr.dtype,
+            crs=crs,
+            transform=transform,
+        ) as dst:
+            dst.write(arr[:, :, 0], 1)
+            dst.write(arr[:, :, 1], 2)
+            dst.write(arr[:, :, 2], 3)
+            if nbands >= 4:
+                dst.write(arr[:, :, 3], 4)
+        print(f"[download] Done. Cached at: {cache_path}")
+        return cache_path
 
+    print(f"[download] Requesting GetMap from WMS (this may take a while for large areas)...")
+    arr, transform = _download_wms_tile(
+        minx, miny, maxx, maxy, width, height,
+        wms_url=wms_url, wms_layer=wms_layer, crs=crs, store_alpha=store_alpha,
+    )
+    has_alpha = arr.ndim == 3 and arr.shape[2] == 4
+    nbands = 4 if (store_alpha and has_alpha) else 3
     print("[download] Writing georeferenced GeoTIFF to cache...")
-    transform = from_bounds(minx, miny, maxx, maxy, width, height)
     with rasterio.open(
         cache_path,
         "w",
         driver="GTiff",
         height=height,
         width=width,
-        count=3,
+        count=nbands,
         dtype=arr.dtype,
         crs=crs,
         transform=transform,
@@ -309,6 +435,8 @@ def download_wms_raster(
         dst.write(arr[:, :, 0], 1)
         dst.write(arr[:, :, 1], 2)
         dst.write(arr[:, :, 2], 3)
+        if nbands >= 4:
+            dst.write(arr[:, :, 3], 4)
     print(f"[download] Done. Cached at: {cache_path}")
     return cache_path
 
@@ -765,6 +893,70 @@ def segment_and_vectorize(
     return gpd.GeoDataFrame(geometry=parcels, crs=crs)
 
 
+def segment_and_vectorize_areas(
+    raster_path: Path,
+    min_area_m2: float | None = None,
+    *,
+    area_background: str | tuple[int, int, int] = "alpha",
+    area_background_tolerance: int = 15,
+    area_alpha_min: int = 1,
+) -> gpd.GeoDataFrame:
+    """
+    Area mode: vectorize contiguous non-background regions as polygons (outer boundary only).
+    area_background: "alpha" = transparent pixels are background (need 4-band raster),
+    or (r, g, b) = pixels within tolerance of this color are background.
+    """
+    if min_area_m2 is None:
+        min_area_m2 = MIN_PARCEL_AREA_M2
+    t0 = time.perf_counter()
+    with rasterio.open(raster_path) as src:
+        arr = src.read()
+        transform = src.transform
+        crs = src.crs
+    t0 = _log_elapsed("Read raster", t0)
+    h, w = arr.shape[1], arr.shape[2]
+    if arr.shape[0] >= 4:
+        alpha = arr[3]
+    else:
+        alpha = None
+    rgb = arr[:3]
+
+    if area_background == "alpha":
+        if alpha is None:
+            raise ValueError("area_background='alpha' requires a 4-band raster (store_alpha=True in download)")
+        data_mask = (alpha >= area_alpha_min).astype(np.uint8)
+    elif isinstance(area_background, (tuple, list)) and len(area_background) == 3:
+        r0, g0, b0 = int(area_background[0]), int(area_background[1]), int(area_background[2])
+        R, G, B = rgb[0].astype(np.int32), rgb[1].astype(np.int32), rgb[2].astype(np.int32)
+        dist = np.maximum(np.abs(R - r0), np.maximum(np.abs(G - g0), np.abs(B - b0)))
+        data_mask = (dist > area_background_tolerance).astype(np.uint8)
+    else:
+        raise ValueError("area_background must be 'alpha' or (r, g, b) tuple")
+
+    t0 = _log_elapsed("Area mask", t0)
+    polygons_out = []
+    for geom_dict, value in shapes(data_mask, transform=transform):
+        if value != 1:
+            continue
+        geom = shape(geom_dict)
+        if geom.is_empty or not geom.is_valid:
+            continue
+        if geom.geom_type == "Polygon":
+            poly = Polygon(geom.exterior)
+            if not poly.is_empty and poly.area >= min_area_m2:
+                polygons_out.append(poly)
+        elif geom.geom_type == "MultiPolygon":
+            for part in geom.geoms:
+                if part.geom_type == "Polygon":
+                    poly = Polygon(part.exterior)
+                    if not poly.is_empty and poly.area >= min_area_m2:
+                        polygons_out.append(poly)
+    t0 = _log_elapsed(f"Vectorize areas: {len(polygons_out)} polygons", t0)
+    if not polygons_out:
+        return gpd.GeoDataFrame(geometry=[], crs=crs)
+    return gpd.GeoDataFrame(geometry=polygons_out, crs=crs)
+
+
 def _boundaries_as_shared_edges(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Replace thin 'line' polygons with shared edges: for each thin polygon, find the two
@@ -839,17 +1031,29 @@ def map_to_pixel(x: float, y: float, minx: float, miny: float, maxx: float, maxy
 
 # Resolved GetFeatureInfo format: 'gml' or 'text', set on first call when format is auto
 _getfeatureinfo_format: str | None = None
+# Log WMS error response once per run to avoid spam
+_gfi_wms_error_logged: bool = False
 
 
 def parse_feature_info_gml(xml_text: str) -> dict[str, str]:
-    """Parse GetFeatureInfo application/vnd.ogc.gml response into key-value dict."""
+    """Parse GetFeatureInfo application/vnd.ogc.gml response into key-value dict.
+    Returns {"_error": "..."} when the response is a WMS ServiceExceptionReport.
+    """
     out: dict[str, str] = {}
     try:
         root = ET.fromstring(xml_text)
-        # Skip OGC ServiceExceptionReport (error response)
+        # Detect OGC ServiceExceptionReport (error response) and extract message
         tag_root = root.tag.split("}")[-1] if "}" in root.tag else root.tag
         if "Exception" in tag_root or "ServiceException" in tag_root:
-            return out
+            msg = ""
+            for elem in root.iter():
+                tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                if "Exception" in tag and elem.text and elem.text.strip():
+                    msg = elem.text.strip()
+                    break
+            if not msg and len(xml_text) < 500:
+                msg = xml_text.strip()[:300]
+            return {"_error": msg or "WMS returned exception (no message)"}
         # Find feature element: *_feature or element with simple child tags (id, objid, nut, ...)
         for elem in root.iter():
             tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
@@ -902,7 +1106,14 @@ def get_feature_info(
         }
         r = requests.get(wms_url, params=params, timeout=15)
         r.raise_for_status()
-        return parse_feature_info_gml(r.text)
+        parsed = parse_feature_info_gml(r.text)
+        if "_error" in parsed:
+            global _gfi_wms_error_logged
+            if not _gfi_wms_error_logged:
+                _gfi_wms_error_logged = True
+                print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
+            return parsed
+        return parsed
 
     if fmt == "text":
         params = {
@@ -917,7 +1128,14 @@ def get_feature_info(
         if _getfeatureinfo_format is None:
             _getfeatureinfo_format = "text"
             print(f"  [GetFeatureInfo] auto: using text/plain fallback", flush=True)
-        return parse_feature_info_text(r.text)
+        parsed = parse_feature_info_text(r.text)
+        if "_error" in parsed:
+            global _gfi_wms_error_logged
+            if not _gfi_wms_error_logged:
+                _gfi_wms_error_logged = True
+                print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
+            return parsed
+        return parsed
 
     # Auto: try GML first
     params_gml = {
@@ -932,6 +1150,12 @@ def get_feature_info(
         print(f"  [GetFeatureInfo] auto: tried GML, status={r.status_code}, len={len(r.text)}, ct={r.headers.get('Content-Type', '')[:50]}", flush=True)
     if r.status_code == 200 and (r.text.strip().startswith("<?xml") or "application/vnd.ogc.gml" in (r.headers.get("Content-Type") or "")):
         parsed = parse_feature_info_gml(r.text)
+        if "_error" in parsed:
+            global _gfi_wms_error_logged
+            if not _gfi_wms_error_logged:
+                _gfi_wms_error_logged = True
+                print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
+            return parsed
         if _getfeatureinfo_format is None:
             print(f"  [GetFeatureInfo] GML parsed keys: {list(parsed.keys()) if parsed else 'EMPTY'}", flush=True)
         if parsed:
@@ -944,7 +1168,14 @@ def get_feature_info(
     r.raise_for_status()
     if _getfeatureinfo_format is None:
         _getfeatureinfo_format = "text"
-    return parse_feature_info_text(r.text)
+    parsed = parse_feature_info_text(r.text)
+    if "_error" in parsed:
+        global _gfi_wms_error_logged
+        if not _gfi_wms_error_logged:
+            _gfi_wms_error_logged = True
+            print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
+        return parsed
+    return parsed
 
 
 def _interior_point(geom) -> tuple[float, float] | None:
@@ -970,7 +1201,9 @@ def _interior_point(geom) -> tuple[float, float] | None:
 
 
 def parse_feature_info_text(text: str) -> dict[str, str]:
-    """Parse GetFeatureInfo text/plain into key-value dict. Handles multiple formats for robustness:
+    """Parse GetFeatureInfo text/plain into key-value dict.
+    Returns {"_error": "..."} when the response looks like a WMS error message.
+    Handles multiple formats for robustness:
     - key: value (first colon)
     - key = 'value' or key = \"value\" (MapServer)
     - key = value (unquoted; value = rest of line)
@@ -978,6 +1211,10 @@ def parse_feature_info_text(text: str) -> dict[str, str]:
     - HTML <td>key</td><td>value</td>
     Skips lines whose key starts with 'Feature ' or 'Layer '.
     """
+    # Detect WMS error response (e.g. "WMS server error. Image size out of range...")
+    text_lower = text.strip().lower()
+    if "wms server error" in text_lower or "serviceexception" in text_lower or "out of range" in text_lower or "must be between" in text_lower:
+        return {"_error": text.strip()[:400]}
     out: dict[str, str] = {}
     for raw_line in text.splitlines():
         line = raw_line.strip()
@@ -1022,12 +1259,13 @@ def run(
     output_path: Path | str | None = None,
     *,
     input_boundary: Path | str | None = None,
-    boundary_buffer_m: float | None = None,
     wms_url: str | None = None,
     wms_layer: str | None = None,
     crs: str | None = None,
     map_size: int | None = None,
     cache_dir: Path | str | None = None,
+    cache_key_prefix: str = "wms",
+    mode: str = "lines",
     line_color: str | None = None,
     line_color_rgb: tuple[int, int, int, int, int, int] | None = None,
     background_color: tuple[int, int, int] | None = None,
@@ -1035,6 +1273,9 @@ def run(
     line_channel: str | None = None,
     line_channel_min: int | None = None,
     line_channel_max: int | None = None,
+    area_background: str | tuple[int, int, int] = "alpha",
+    area_background_tolerance: int = 15,
+    area_alpha_min: int = 1,
     max_hole_area_sq_m: float | None = None,
     download_only: bool | None = None,
     skip_getfeatureinfo: bool | None = None,
@@ -1048,18 +1289,22 @@ def run(
         extent: (minx, miny, maxx, maxy) in crs. If None, required: input_boundary (bounds taken from that shape).
         output_path: Path for output shapefile. Written unless download_only=True. Default from DEFAULT_OUTPUT_SHP when extent from input_boundary.
         input_boundary: Shapefile path for extent when extent is None. Required if extent is None. Ignored if extent is given.
-        boundary_buffer_m: Buffer in metres around input_boundary to expand extent. 0 = no buffer. Used only when extent is None.
         wms_url: WMS GetMap/GetFeatureInfo URL. Default: DEFAULT_WMS_URL.
         wms_layer: WMS layer name. Default: DEFAULT_WMS_LAYER.
         crs: CRS for bbox and output (e.g. EPSG:25833). Default: DEFAULT_CRS.
         map_size: Pixels on longest side; None = auto from GetCapabilities. Default: None.
         cache_dir: Directory for cached rasters. Default: project cache dir.
-        line_color: Preset for line pixels: green|black|red|blue|white. Required unless line_color_rgb or line_channel is set (no default in library).
+        cache_key_prefix: Prefix for cache filename (e.g. 'wms' or 'bodengeologie'). Default: 'wms'.
+        mode: 'lines' = detect boundary lines and split extent; 'areas' = vectorize non-background (opaque or not-color) regions. Default: 'lines'.
+        line_color: Preset for line pixels (mode=lines): green|black|red|blue|white. Required when mode='lines' unless line_color_rgb or line_channel set.
         line_color_rgb: Custom RGB range (r_min,r_max,g_min,g_max,b_min,b_max). Overrides line_color if set.
         background_color: (r,g,b); if set, line = pixel not within tolerance of this color.
         background_tolerance: Max distance from background_color to count as background. Default: 15.
         line_channel: Use single channel: alpha|0|1|2. If set, ignores line_color/line_color_rgb.
         line_channel_min, line_channel_max: Channel value range for line (e.g. alpha 128–255, black 0–80).
+        area_background: When mode='areas': 'alpha' = transparent is background, or (r,g,b) = this color is background. Default: 'alpha'.
+        area_background_tolerance: When area_background=(r,g,b), max RGB distance to count as background. Default: 15.
+        area_alpha_min: When area_background='alpha', pixels with alpha >= this are data. Default: 1.
         max_hole_area_sq_m: None = no fill. 0 = fill all holes; >0 = fill holes smaller than this (m²).
         download_only: If True, only download/cache raster. None = use module default.
         skip_getfeatureinfo: If True, do not query GetFeatureInfo. None = use module default.
@@ -1069,13 +1314,15 @@ def run(
         Final parcel GeoDataFrame. Empty if download_only=True.
     """
     _crs = crs or DEFAULT_CRS
-    if line_color is None and line_color_rgb is None and line_channel is None:
-        raise ValueError("One of line_color, line_color_rgb, or line_channel must be provided")
+    _mode = (mode or "lines").lower()
+    if _mode not in ("lines", "areas"):
+        raise ValueError("mode must be 'lines' or 'areas'")
+    if _mode == "lines" and line_color is None and line_color_rgb is None and line_channel is None:
+        raise ValueError("When mode='lines', one of line_color, line_color_rgb, or line_channel must be provided")
     if extent is None:
         if not input_boundary:
             raise ValueError("Either extent or input_boundary must be provided")
-        _buffer_m = boundary_buffer_m if boundary_buffer_m is not None else 0.0
-        extent = get_bounds_from_shape(input_boundary, crs=_crs, buffer_m=_buffer_m)
+        extent = get_bounds_from_shape(input_boundary, crs=_crs)
         if output_path is None:
             output_path = DEFAULT_OUTPUT_SHP
     _out = output_path or DEFAULT_OUTPUT_SHP
@@ -1094,6 +1341,7 @@ def run(
     print(f"[run] Extent ({_crs}): {extent}", flush=True)
 
     print("[run] Downloading WMS raster (or loading from cache)...", flush=True)
+    store_alpha = _mode == "areas" and area_background == "alpha"
     raster_path = download_wms_raster(
         minx, miny, maxx, maxy,
         wms_url=wms_url,
@@ -1101,7 +1349,8 @@ def run(
         crs=_crs,
         map_size=map_size,
         cache_dir=_cache_dir,
-        cache_key_prefix="wms",
+        cache_key_prefix=cache_key_prefix,
+        store_alpha=store_alpha,
     )
 
     if _download_only:
@@ -1114,27 +1363,46 @@ def run(
         transform = src.transform
     minx_r, miny_r = transform * (0, height)
     maxx_r, maxy_r = transform * (width, 0)
+    # GetFeatureInfo requires WIDTH/HEIGHT <= WMS max (e.g. 4192); use scaled dimensions when raster is stitched
+    _gfi_cap = (min(cap) if (cap := get_wms_max_size(wms_url or DEFAULT_WMS_URL)) else 4192)
+    if max(width, height) > _gfi_cap:
+        gfi_width = max(1, int(width * _gfi_cap / max(width, height)))
+        gfi_height = max(1, int(height * _gfi_cap / max(width, height)))
+    else:
+        gfi_width, gfi_height = width, height
 
     t_main = time.perf_counter()
-    print("[run] Segmenting image and vectorizing polygons (boundary-based)...", flush=True)
-    polygons_gdf = segment_and_vectorize(
-        raster_path,
-        line_color=line_color,
-        line_color_rgb=line_color_rgb,
-        background_color=background_color,
-        background_tolerance=background_tolerance,
-        line_channel=line_channel,
-        line_channel_min=line_channel_min,
-        line_channel_max=line_channel_max,
-    )
-    print(f"[run] Polygons from segmentation: {len(polygons_gdf)} ({(time.perf_counter() - t_main):.1f}s total)", flush=True)
+    if _mode == "areas":
+        print("[run] Segmenting image and vectorizing areas (opacity/color mask)...", flush=True)
+        polygons_gdf = segment_and_vectorize_areas(
+            raster_path,
+            area_background=area_background,
+            area_background_tolerance=area_background_tolerance,
+            area_alpha_min=area_alpha_min,
+        )
+        print(f"[run] Polygons from segmentation: {len(polygons_gdf)} ({(time.perf_counter() - t_main):.1f}s total)", flush=True)
+    else:
+        print("[run] Segmenting image and vectorizing polygons (boundary-based)...", flush=True)
+        polygons_gdf = segment_and_vectorize(
+            raster_path,
+            line_color=line_color,
+            line_color_rgb=line_color_rgb,
+            background_color=background_color,
+            background_tolerance=background_tolerance,
+            line_channel=line_channel,
+            line_channel_min=line_channel_min,
+            line_channel_max=line_channel_max,
+        )
+        print(f"[run] Polygons from segmentation: {len(polygons_gdf)} ({(time.perf_counter() - t_main):.1f}s total)", flush=True)
 
-    if "is_parcel" in polygons_gdf.columns:
+    if _mode == "lines" and "is_parcel" in polygons_gdf.columns:
         print("[run] Replacing thin 'line' polygons with shared edges...", flush=True)
         polygons_gdf = _boundaries_as_shared_edges(polygons_gdf)
         print(f"[run] Parcels after shared-edge step: {len(polygons_gdf)}", flush=True)
-    else:
+    elif _mode == "lines":
         print(f"[run] Split-extent path: boundaries are shared edges, {len(polygons_gdf)} parcels", flush=True)
+    else:
+        print(f"[run] Areas mode: {len(polygons_gdf)} polygons (outer boundaries only)", flush=True)
 
     if SIMPLIFY_TOLERANCE_M > 0 and SIMPLIFY_BLADE_M <= 0 and len(polygons_gdf) > 0:
         polygons_gdf = polygons_gdf.copy()
@@ -1185,8 +1453,11 @@ def run(
         print(f"[run] {msg}", flush=True)
 
     if not _skip_gfi:
-        global _getfeatureinfo_format
+        global _getfeatureinfo_format, _gfi_wms_error_logged
         _getfeatureinfo_format = None  # auto-detect GML vs text on first request
+        _gfi_wms_error_logged = False
+        if (gfi_width, gfi_height) != (width, height):
+            print(f"  [run] GetFeatureInfo using dimensions {gfi_width}x{gfi_height} (raster {width}x{height} exceeds WMS max {_gfi_cap})", flush=True)
         n_poly = len(polygons_gdf)
         # Build (index, cx, cy) for polygons with interior point; preallocate attrs_list
         attrs_list = [{}] * n_poly
@@ -1203,7 +1474,7 @@ def run(
                 time.sleep(REQUEST_DELAY_S)
                 try:
                     attrs = get_feature_info(
-                        minx_r, miny_r, maxx_r, maxy_r, width, height, cx, cy,
+                        minx_r, miny_r, maxx_r, maxy_r, gfi_width, gfi_height, cx, cy,
                         wms_url=wms_url, wms_layer=wms_layer, crs=_crs,
                     )
                 except Exception as e:
@@ -1221,7 +1492,7 @@ def run(
                 ii, cx, cy = item
                 try:
                     return ii, get_feature_info(
-                        minx_r, miny_r, maxx_r, maxy_r, width, height, cx, cy,
+                        minx_r, miny_r, maxx_r, maxy_r, gfi_width, gfi_height, cx, cy,
                         wms_url=wms_url, wms_layer=wms_layer, crs=_crs,
                     )
                 except Exception as e:
@@ -1232,7 +1503,7 @@ def run(
                 i0, cx0, cy0 = tasks[0]
                 try:
                     attrs_list[i0] = get_feature_info(
-                        minx_r, miny_r, maxx_r, maxy_r, width, height, cx0, cy0,
+                        minx_r, miny_r, maxx_r, maxy_r, gfi_width, gfi_height, cx0, cy0,
                         wms_url=wms_url, wms_layer=wms_layer, crs=_crs,
                     )
                 except Exception as e:
@@ -1255,6 +1526,9 @@ def run(
             print(f"  [run] GetFeatureInfo: {len(tasks)}/{n_poly} polygons", flush=True)
 
         print("[run] Building attribute columns...", flush=True)
+        n_gfi_errors = sum(1 for a in attrs_list if a and a.get("_error"))
+        if n_gfi_errors:
+            print(f"  [run] WARNING: GetFeatureInfo failed for {n_gfi_errors}/{n_poly} polygons (WMS error). Check that request dimensions are within WMS limits (e.g. ≤4192).", flush=True)
         all_keys = set()
         for a in attrs_list:
             all_keys.update(a.keys())
@@ -1282,8 +1556,6 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="WMS to shapefile: download layer, vectorize line boundaries to polygons")
     ap.add_argument("--input-boundary", type=Path, default=None, metavar="PATH",
         help=f"Boundary shapefile for extent (default: {DEFAULT_INPUT_BOUNDARY})")
-    ap.add_argument("--boundary-buffer", type=float, default=None, metavar="M",
-        help="Buffer in metres around boundary to expand extent (default: 0)")
     ap.add_argument("--output", "-o", type=Path, default=None, metavar="PATH",
         help=f"Output shapefile path (default: {DEFAULT_OUTPUT_SHP})")
     ap.add_argument("--wms-url", default=None, metavar="URL",
@@ -1307,6 +1579,12 @@ def main() -> None:
         help="Use single channel for line: alpha or R=0,G=1,B=2; overrides color")
     ap.add_argument("--line-channel-range", default=None, metavar="min,max",
         help="Channel value range for line (default: alpha 128,255; RGB 0,80)")
+    ap.add_argument("--mode", default="lines", choices=["lines", "areas"],
+        help="lines = detect boundary lines and split extent; areas = vectorize non-background regions (default: lines)")
+    ap.add_argument("--area-background", default=None, metavar="alpha|r,g,b",
+        help="When --mode=areas: 'alpha' = transparent is background, or r,g,b (e.g. 0,0,0) = color is background (default: alpha)")
+    ap.add_argument("--area-background-tolerance", type=int, default=15, metavar="N",
+        help="When area-background is r,g,b: max RGB distance to count as background (default: 15)")
     gfi = ap.add_mutually_exclusive_group()
     gfi.add_argument("--skip-getfeatureinfo", action="store_true",
         help="Skip GetFeatureInfo (write geometry only, no WMS attributes)")
@@ -1319,7 +1597,8 @@ def main() -> None:
     if not input_boundary or not output_path:
         print("[main] --input-boundary and --output are required (no project defaults in gis_utils).", file=sys.stderr, flush=True)
         sys.exit(1)
-    line_color_val = args.line_color or DEFAULT_LINE_COLOR  # CLI default; library requires explicit
+    mode_val = (args.mode or "lines").lower()
+    line_color_val = None if mode_val == "areas" else (args.line_color or DEFAULT_LINE_COLOR)
 
     line_color_rgb_val = None
     if args.line_color_rgb is not None:
@@ -1389,15 +1668,31 @@ def main() -> None:
                 print(f"[main] Invalid --max-hole-area '{args.max_hole_area}'; use none, 0, or a number (m²).", file=sys.stderr, flush=True)
                 sys.exit(1)
 
+    area_background_val: str | tuple[int, int, int] = "alpha"
+    if args.area_background is not None:
+        v = args.area_background.strip().lower()
+        if v == "alpha":
+            area_background_val = "alpha"
+        else:
+            parts = [x.strip() for x in v.split(",")]
+            if len(parts) != 3:
+                print("[main] --area-background must be 'alpha' or r,g,b (3 integers)", file=sys.stderr, flush=True)
+                sys.exit(1)
+            try:
+                area_background_val = tuple(int(x) for x in parts)
+            except ValueError:
+                print("[main] --area-background r,g,b values must be integers 0-255", file=sys.stderr, flush=True)
+                sys.exit(1)
+
     run(
         extent=None,
         output_path=output_path,
         input_boundary=input_boundary,
-        boundary_buffer_m=args.boundary_buffer,
         wms_url=args.wms_url,
         wms_layer=args.wms_layer,
         crs=args.crs,
         map_size=map_size_val,
+        mode=mode_val,
         line_color=line_color_val,
         line_color_rgb=line_color_rgb_val,
         background_color=background_color_val,
@@ -1405,16 +1700,18 @@ def main() -> None:
         line_channel=args.line_channel,
         line_channel_min=line_channel_min_val,
         line_channel_max=line_channel_max_val,
+        area_background=area_background_val,
+        area_background_tolerance=args.area_background_tolerance,
         max_hole_area_sq_m=max_hole_area_sq_m,
         skip_getfeatureinfo=skip_getfeatureinfo_val,
     )
 
 
-def get_planungsbereich_bounds(buffer_m: float = 10.0) -> tuple[float, float, float, float]:
-    """Backwards compatibility: bounds from DEFAULT_INPUT_BOUNDARY. Prefer get_bounds_from_shape(path, crs, buffer_m)."""
+def get_planungsbereich_bounds() -> tuple[float, float, float, float]:
+    """Backwards compatibility: bounds from DEFAULT_INPUT_BOUNDARY. Prefer get_bounds_from_shape(path, crs)."""
     if DEFAULT_INPUT_BOUNDARY is None:
-        raise ValueError("DEFAULT_INPUT_BOUNDARY not set; use get_bounds_from_shape(path, crs, buffer_m) with explicit path.")
-    return get_bounds_from_shape(DEFAULT_INPUT_BOUNDARY, DEFAULT_CRS, buffer_m)
+        raise ValueError("DEFAULT_INPUT_BOUNDARY not set; use get_bounds_from_shape(path, crs) with explicit path.")
+    return get_bounds_from_shape(DEFAULT_INPUT_BOUNDARY, DEFAULT_CRS)
 
 
 if __name__ == "__main__":
