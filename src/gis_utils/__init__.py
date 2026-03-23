@@ -1,6 +1,7 @@
-"""GIS utilities: DXF tools, geometry operations, reporting, WMS vectorization."""
+"""GIS utilities: DXF tools, geometry operations, reporting, OSM, WMS vectorization."""
 
 from gis_utils.md_table import markdown_table
+from gis_utils.dxf.convert import shapefile_to_dxf
 from gis_utils.dxf.document import new_dxf_document, ensure_layer
 from gis_utils.dxf.extract import (
     extract_dxf_circles,
@@ -16,9 +17,12 @@ from gis_utils.dxf.map_od import (
     get_table_handle_by_name,
 )
 from gis_utils.geometry import (
+    distance_to_nearest,
     find_column,
     load_and_union,
     make_valid_gdf,
+    morphological_filter,
+    points_with_buffers,
     remove_inner_rings,
     subtract_geometries,
     subtract_smaller_overlaps,
@@ -41,6 +45,8 @@ __all__ = [
     "interpolate_bulge_arc",
     "lwpolyline_to_coords",
     "save_layers_as_shapefiles",
+    # DXF conversion
+    "shapefile_to_dxf",
     # DXF Map Object Data
     "OD_EXTENSION_DICT_KEY",
     "attach_od_to_entity",
@@ -53,6 +59,9 @@ __all__ = [
     "subtract_smaller_overlaps",
     "load_and_union",
     "find_column",
+    "morphological_filter",
+    "distance_to_nearest",
+    "points_with_buffers",
     # Reporting
     "area_report",
     "area_by_category",

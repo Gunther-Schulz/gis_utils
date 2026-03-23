@@ -200,6 +200,172 @@ def find_column(gdf: gpd.GeoDataFrame, candidates: list[str]) -> str | None:
     return None
 
 
+def morphological_filter(
+    gdf: gpd.GeoDataFrame,
+    min_area_ha: float = 0.5,
+    buffer_distance: float = 10.0,
+    remove_holes: bool = True,
+) -> gpd.GeoDataFrame:
+    """
+    Clean polygon data using buffer-dissolve-buffer morphological filtering.
+
+    Merges nearby polygons by buffering outward, dissolving, then buffering
+    back inward. Removes small fragments and optionally fills holes.
+
+    Args:
+        gdf: GeoDataFrame with polygon geometries (must be in projected CRS with meters).
+        min_area_ha: Remove polygons smaller than this (hectares).
+        buffer_distance: Buffer distance in meters for the morphological operation.
+        remove_holes: If True, remove inner rings from result polygons.
+
+    Returns:
+        Filtered GeoDataFrame with area_m2 and area_ha columns.
+    """
+    if gdf.empty:
+        return gdf.copy()
+
+    # Step 1: Size filter
+    gdf = gdf.copy()
+    gdf["area_ha"] = gdf.geometry.area / 10_000
+    filtered = gdf[gdf["area_ha"] >= min_area_ha].copy()
+    if filtered.empty:
+        return filtered
+
+    # Step 2: Positive buffer (sharp corners) → dissolve → negative buffer
+    buffered = filtered.geometry.buffer(buffer_distance, cap_style=3, join_style=2)
+    dissolved = gpd.GeoDataFrame(geometry=buffered, crs=filtered.crs).dissolve()
+    if len(dissolved) == 1:
+        dissolved = dissolved.explode(index_parts=False)
+    dissolved = dissolved.reset_index(drop=True)
+
+    shrunk = dissolved.geometry.buffer(-buffer_distance, cap_style=3, join_style=2)
+    shrunk = shrunk[~shrunk.is_empty]
+    result = gpd.GeoDataFrame(geometry=shrunk, crs=filtered.crs)
+    result = result.explode(index_parts=False).reset_index(drop=True)
+    result = result[result.geometry.is_valid & ~result.geometry.is_empty]
+
+    # Step 3: Recalculate areas, re-filter
+    result["area_m2"] = result.geometry.area
+    result["area_ha"] = result["area_m2"] / 10_000
+    result = result[result["area_ha"] >= min_area_ha].copy()
+
+    # Step 4: Remove holes
+    if remove_holes:
+        result["geometry"] = result.geometry.apply(remove_inner_rings)
+        result["area_m2"] = result.geometry.area
+        result["area_ha"] = result["area_m2"] / 10_000
+
+    return result.reset_index(drop=True)
+
+
+def distance_to_nearest(
+    gdf: gpd.GeoDataFrame,
+    reference_gdf: gpd.GeoDataFrame,
+    column_name: str = "dist_nearest",
+) -> gpd.GeoDataFrame:
+    """
+    Add a column with the distance to the nearest feature in a reference layer.
+
+    Both GeoDataFrames must be in the same projected CRS (meters).
+
+    Args:
+        gdf: GeoDataFrame to add distances to.
+        reference_gdf: Reference features to measure distance to.
+        column_name: Name of the new distance column.
+
+    Returns:
+        Copy of gdf with the distance column added (meters, rounded to 1 decimal).
+    """
+    if reference_gdf.empty:
+        result = gdf.copy()
+        result[column_name] = None
+        return result
+
+    # Ensure same CRS
+    if gdf.crs and reference_gdf.crs and gdf.crs != reference_gdf.crs:
+        reference_gdf = reference_gdf.to_crs(gdf.crs)
+
+    ref_geoms = reference_gdf.geometry.tolist()
+    result = gdf.copy()
+    distances = []
+    for geom in result.geometry:
+        if geom is None or geom.is_empty:
+            distances.append(None)
+            continue
+        d = min(geom.distance(ref) for ref in ref_geoms)
+        distances.append(round(d, 1))
+    result[column_name] = distances
+    return result
+
+
+def points_with_buffers(
+    data: list[dict],
+    crs: str,
+    x_col: str = "x",
+    y_col: str = "y",
+    buffer_col: str | None = None,
+    buffer_factor: float = 1.0,
+    default_buffer: float = 0.0,
+) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame | None]:
+    """
+    Create a point GeoDataFrame from coordinate data, optionally with buffer union.
+
+    Args:
+        data: List of dicts with coordinate and attribute columns.
+        crs: Coordinate reference system for the output.
+        x_col: Column name for X/easting coordinate.
+        y_col: Column name for Y/northing coordinate.
+        buffer_col: Column name containing buffer radius values.
+            If None, no buffer GeoDataFrame is created.
+        buffer_factor: Multiply buffer values by this factor (e.g. 15 for 15x height).
+        default_buffer: Default buffer radius when buffer_col value is missing/zero.
+
+    Returns:
+        Tuple of (points_gdf, buffer_union_gdf). buffer_union_gdf is None if
+        buffer_col is None. Buffer GeoDataFrame contains a single unioned polygon.
+    """
+    from shapely.geometry import Point
+
+    geometries = []
+    attributes = []
+    for row in data:
+        x = row.get(x_col)
+        y = row.get(y_col)
+        if x is None or y is None:
+            continue
+        try:
+            geometries.append(Point(float(x), float(y)))
+        except (ValueError, TypeError):
+            continue
+        attributes.append({k: v for k, v in row.items() if k not in (x_col, y_col)})
+
+    if not geometries:
+        empty = gpd.GeoDataFrame(columns=["geometry"], crs=crs)
+        return empty, None
+
+    points_gdf = gpd.GeoDataFrame(attributes, geometry=geometries, crs=crs)
+
+    if buffer_col is None:
+        return points_gdf, None
+
+    # Create buffer union
+    buffers = []
+    for i, row in points_gdf.iterrows():
+        r = row.get(buffer_col, default_buffer)
+        if r is None or r <= 0:
+            r = default_buffer
+        if r <= 0:
+            continue
+        buffers.append(points_gdf.geometry.iloc[i] .buffer(r * buffer_factor))
+
+    if not buffers:
+        return points_gdf, None
+
+    buffer_union = unary_union(buffers)
+    buffer_gdf = gpd.GeoDataFrame(geometry=[buffer_union], crs=crs)
+    return points_gdf, buffer_gdf
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------

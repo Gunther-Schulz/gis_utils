@@ -1,5 +1,6 @@
-"""DXF utilities: document creation, geometry extraction, and Map Object Data."""
+"""DXF utilities: document creation, geometry extraction, conversion, and Map Object Data."""
 
+from gis_utils.dxf.convert import shapefile_to_dxf
 from gis_utils.dxf.document import new_dxf_document, ensure_layer
 from gis_utils.dxf.extract import (
     extract_dxf_circles,
@@ -16,6 +17,7 @@ from gis_utils.dxf.map_od import (
 )
 
 __all__ = [
+    "shapefile_to_dxf",
     "new_dxf_document",
     "ensure_layer",
     "extract_dxf_layers",
