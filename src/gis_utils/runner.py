@@ -214,27 +214,121 @@ def _collect_deps(name: str, by_name: dict[str, dict]) -> set[str]:
     return result
 
 
+WORKFLOW_TEMPLATE = """\
+project:
+  name: {name}
+  conda_env: gis
+
+steps:
+  - name: Example step
+    script: scripts/example.py
+    run: always
+    # outputs:
+    #   - output/result.shp
+    # depends_on:
+    #   - Other step name
+"""
+
+CLAUDE_MD_CONTENT = """\
+# {name}
+
+## Project notes
+<!-- Add project-specific context here: CRS, coordinate quirks, data sources, etc. -->
+
+## Environment
+- Conda env: `gis`
+- Workflow: `gis-workflow` (run), `gis-workflow --dry-run` (plan), `gis-workflow --step "Name"` (single step)
+- Scripts in `scripts/`, old scripts in `deprecated_scripts/` (frozen, do not modify)
+
+## gis_utils library
+This project uses `gis_utils` (pip install -e ~/dev/Gunther-Schulz/gis_utils).
+ALWAYS use it instead of writing equivalent code from scratch.
+
+### Rules
+- **Markdown tables:** ALWAYS use `from gis_utils import markdown_table` — fixed-width columns that align in raw markdown. NEVER use tabulate, pandas .to_markdown(), or manual formatting.
+- **DXF extraction:** use `extract_dxf_layers()` / `extract_dxf_circles()` — handles bulge/arc interpolation, block recursion, all entity types. NEVER iterate DXF entities manually.
+- **DXF creation:** use `new_dxf_document()` and `ensure_layer()` for CAD-compatible headers.
+- **Geometry repair:** use `make_valid_gdf()`, not inline shapely calls.
+- **Removing holes:** use `remove_inner_rings()`.
+- **Set difference:** use `subtract_geometries()`.
+- **Overlap removal:** use `subtract_smaller_overlaps()`.
+- **Area reports:** use `area_report()`, `intersection_areas()`, `area_by_category()`.
+- **Load + union:** use `load_and_union()` to avoid double-counting overlapping polygons.
+- **Find columns:** use `find_column(gdf, candidates)` for varying column name conventions.
+
+### Full API
+See ~/dev/Gunther-Schulz/gis_utils/CLAUDE.md
+"""
+
+
+def init_project(project_dir: str | Path) -> None:
+    """
+    Initialize a GIS project with workflow.yaml, scripts/, and CLAUDE.md.
+
+    Args:
+        project_dir: Path to project directory.
+    """
+    project_dir = Path(project_dir).resolve()
+    name = project_dir.name
+
+    # Create scripts/
+    scripts_dir = project_dir / "scripts"
+    scripts_dir.mkdir(exist_ok=True)
+    print(f"  scripts/ — {'exists' if scripts_dir.exists() else 'created'}")
+
+    # Create workflow.yaml (don't overwrite)
+    wf_path = project_dir / "workflow.yaml"
+    if wf_path.exists():
+        print(f"  workflow.yaml — already exists (skipped)")
+    else:
+        wf_path.write_text(WORKFLOW_TEMPLATE.format(name=name), encoding="utf-8")
+        print(f"  workflow.yaml — created")
+
+    # Create CLAUDE.md (don't overwrite)
+    claude_path = project_dir / "CLAUDE.md"
+    if claude_path.exists():
+        print(f"  CLAUDE.md — already exists (skipped)")
+    else:
+        claude_path.write_text(CLAUDE_MD_CONTENT.format(name=name), encoding="utf-8")
+        print(f"  CLAUDE.md — created")
+
+    print(f"\nProject initialized: {name}")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Run a GIS project workflow (reads workflow.yaml).",
+        description="GIS project workflow runner.",
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command")
+
+    # `gis-workflow run` (default when no subcommand)
+    run_parser = subparsers.add_parser("run", help="Run workflow (default)")
+    run_parser.add_argument(
         "project_dir", nargs="?", default=".",
         help="Project directory (default: current directory)",
     )
-    parser.add_argument(
-        "--step", "-s", default=None,
-        help="Run only this step (and its dependencies)",
+    run_parser.add_argument("--step", "-s", default=None, help="Run only this step (and its dependencies)")
+    run_parser.add_argument("--dry-run", "-n", action="store_true", help="Show execution plan without running")
+    run_parser.add_argument("--env", "-e", default=None, help="Conda environment (overrides workflow.yaml)")
+
+    # `gis-workflow init`
+    init_parser = subparsers.add_parser("init", help="Initialize a new project")
+    init_parser.add_argument(
+        "project_dir", nargs="?", default=".",
+        help="Project directory (default: current directory)",
     )
-    parser.add_argument(
-        "--dry-run", "-n", action="store_true",
-        help="Show execution plan without running",
-    )
-    parser.add_argument(
-        "--env", "-e", default=None,
-        help="Conda environment (overrides workflow.yaml)",
-    )
+
     args = parser.parse_args()
+
+    # Default to "run" if no subcommand given but args look like a path
+    if args.command is None:
+        # Re-parse as "run" with remaining args
+        args = run_parser.parse_args()
+        args.command = "run"
+
+    if args.command == "init":
+        init_project(args.project_dir)
+        return
 
     ok = run_workflow(
         args.project_dir,
