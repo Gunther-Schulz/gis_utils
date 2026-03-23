@@ -19,7 +19,11 @@ dependencies = [
     "Pillow",
     "scipy",
     "scikit-image",
+    "pyyaml>=6.0",
 ]
+
+[project.scripts]
+gis-workflow = "gis_utils.runner:main"
 
 [project.urls]
 Repository = "https://github.com/Gunther-Schulz/gis_utils"
