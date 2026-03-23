@@ -240,24 +240,41 @@ CLAUDE_MD_CONTENT = """\
 - Workflow: `gis-workflow` (run), `gis-workflow --dry-run` (plan), `gis-workflow --step "Name"` (single step)
 - Scripts in `scripts/`, old scripts in `deprecated_scripts/` (frozen, do not modify)
 
+## Working on this project
+When the user asks for a GIS task in this project:
+1. **Read `workflow.yaml`** first to understand existing pipeline steps and dependencies
+2. **Decide scope:** Is the task project-specific (→ add to `scripts/` and `workflow.yaml`) or generally reusable (→ add to `gis_utils` library, then use in script)?
+3. **Create/edit scripts** in `scripts/` that import from `gis_utils`
+4. **Update `workflow.yaml`** with new steps, correct dependencies and run modes
+5. **Test with** `gis-workflow --dry-run` before running
+
+### What goes WHERE
+- **`gis_utils` library** (shared): geometry operations, DXF tools, data format conversions, reporting helpers — anything another project might reuse. Source: run `pip show gis-utils` to find editable location (likely ~/dev/Gunther-Schulz/gis_utils). Read its CLAUDE.md for the full API.
+- **`scripts/` (project-specific)**: project paths, project data, orchestration that calls gis_utils functions, project-specific business logic
+
 ## gis_utils library
-This project uses `gis_utils` (pip install -e ~/dev/Gunther-Schulz/gis_utils).
+This project uses `gis_utils` (installed as editable pip package).
 ALWAYS use it instead of writing equivalent code from scratch.
 
 ### Rules
 - **Markdown tables:** ALWAYS use `from gis_utils import markdown_table` — fixed-width columns that align in raw markdown. NEVER use tabulate, pandas .to_markdown(), or manual formatting.
 - **DXF extraction:** use `extract_dxf_layers()` / `extract_dxf_circles()` — handles bulge/arc interpolation, block recursion, all entity types. NEVER iterate DXF entities manually.
 - **DXF creation:** use `new_dxf_document()` and `ensure_layer()` for CAD-compatible headers.
+- **DXF conversion:** use `shapefile_to_dxf()` for SHP→DXF with optional Map OD and labels.
 - **Geometry repair:** use `make_valid_gdf()`, not inline shapely calls.
 - **Removing holes:** use `remove_inner_rings()`.
 - **Set difference:** use `subtract_geometries()`.
 - **Overlap removal:** use `subtract_smaller_overlaps()`.
+- **Polygon cleanup:** use `morphological_filter()` for buffer-dissolve-buffer filtering.
+- **Distance calc:** use `distance_to_nearest()` to add min-distance column.
+- **Points + buffers:** use `points_with_buffers()` to create point GDF with buffer union.
 - **Area reports:** use `area_report()`, `intersection_areas()`, `area_by_category()`.
 - **Load + union:** use `load_and_union()` to avoid double-counting overlapping polygons.
 - **Find columns:** use `find_column(gdf, candidates)` for varying column name conventions.
+- **OSM data:** use `from gis_utils.osm import download_osm_polygons, bbox_from_shapefile`.
 
 ### Full API
-See ~/dev/Gunther-Schulz/gis_utils/CLAUDE.md
+Run `pip show gis-utils` to find source location, then read CLAUDE.md in that directory.
 """
 
 
