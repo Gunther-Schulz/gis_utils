@@ -1089,7 +1089,7 @@ def get_feature_info(
     """Query GetFeatureInfo at map point (px, py). Returns dict of attribute name -> value.
     info_format: 'gml' | 'text' | None. None = try GML first, then text (and cache for subsequent calls).
     """
-    global _getfeatureinfo_format
+    global _getfeatureinfo_format, _gfi_wms_error_logged
     wms_url = wms_url or DEFAULT_WMS_URL
     wms_layer = wms_layer or DEFAULT_WMS_LAYER
     crs = crs or DEFAULT_CRS
@@ -1108,7 +1108,6 @@ def get_feature_info(
         r.raise_for_status()
         parsed = parse_feature_info_gml(r.text)
         if "_error" in parsed:
-            global _gfi_wms_error_logged
             if not _gfi_wms_error_logged:
                 _gfi_wms_error_logged = True
                 print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
@@ -1130,7 +1129,6 @@ def get_feature_info(
             print(f"  [GetFeatureInfo] auto: using text/plain fallback", flush=True)
         parsed = parse_feature_info_text(r.text)
         if "_error" in parsed:
-            global _gfi_wms_error_logged
             if not _gfi_wms_error_logged:
                 _gfi_wms_error_logged = True
                 print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
@@ -1151,7 +1149,6 @@ def get_feature_info(
     if r.status_code == 200 and (r.text.strip().startswith("<?xml") or "application/vnd.ogc.gml" in (r.headers.get("Content-Type") or "")):
         parsed = parse_feature_info_gml(r.text)
         if "_error" in parsed:
-            global _gfi_wms_error_logged
             if not _gfi_wms_error_logged:
                 _gfi_wms_error_logged = True
                 print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
@@ -1170,7 +1167,6 @@ def get_feature_info(
         _getfeatureinfo_format = "text"
     parsed = parse_feature_info_text(r.text)
     if "_error" in parsed:
-        global _gfi_wms_error_logged
         if not _gfi_wms_error_logged:
             _gfi_wms_error_logged = True
             print(f"  [GetFeatureInfo] WMS error (WIDTH={width} HEIGHT={height}): {parsed['_error'][:200]}", flush=True)
