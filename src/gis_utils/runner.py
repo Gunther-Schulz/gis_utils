@@ -274,7 +274,15 @@ ALWAYS use it instead of writing equivalent code from scratch.
 - **OSM data:** use `from gis_utils.osm import download_osm_polygons, bbox_from_shapefile`.
 
 ### Full API
-Run `pip show gis-utils` to find source location, then read CLAUDE.md in that directory.
+Run `pip show gis-utils` to find the editable source location, then read CLAUDE.md there.
+
+### Editing gis_utils
+gis_utils is installed as `pip install -e` (editable). Edits to its source files take effect immediately.
+If you add or modify gis_utils code:
+1. Find the source: `pip show gis-utils` → "Editable project location" field
+2. Edit files there directly
+3. **Commit and push** changes in that repo (it's a separate git repo from this project)
+4. Update its CLAUDE.md if you added new public functions
 """
 
 
