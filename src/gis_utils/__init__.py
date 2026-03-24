@@ -32,6 +32,13 @@ from gis_utils.reporting import (
     area_report,
     intersection_areas,
 )
+from gis_utils.recipes import (
+    Recipe,
+    apply_attribute_mappings,
+    list_recipes,
+    load_recipe,
+    run_recipe,
+)
 
 __all__ = [
     # Markdown tables
@@ -66,4 +73,10 @@ __all__ = [
     "area_report",
     "area_by_category",
     "intersection_areas",
+    # Recipes
+    "Recipe",
+    "load_recipe",
+    "list_recipes",
+    "run_recipe",
+    "apply_attribute_mappings",
 ]

@@ -272,6 +272,19 @@ ALWAYS use it instead of writing equivalent code from scratch.
 - **Load + union:** use `load_and_union()` to avoid double-counting overlapping polygons.
 - **Find columns:** use `find_column(gdf, candidates)` for varying column name conventions.
 - **OSM data:** use `from gis_utils.osm import download_osm_polygons, bbox_from_shapefile`.
+- **WMS vectorization:** use `from gis_utils.wms import run` — supports `recipe="name"` for predefined sources.
+- **Recipes:** use `list_recipes(search="keyword")` to find available source recipes, `load_recipe(name)` to load one.
+
+### WMS/WFS Recipes
+- `from gis_utils.wms import run` accepts `recipe="name"` to use a predefined source recipe
+- `list_recipes(search="keyword")` to find available recipes
+- Recipes live in `sources/` (project-local) or ship with gis_utils (defaults)
+- When the user wants to work with a WMS/WFS source that has no recipe yet:
+  1. Query GetCapabilities to discover available layers
+  2. Sample GetFeatureInfo at multiple points to discover attribute fields and values
+  3. Discuss naming and description with the user
+  4. Create a recipe YAML in the project's `sources/` directory
+  5. Research and populate attribute value mappings from official documentation
 
 ### Full API
 Run `pip show gis-utils` to find the editable source location, then read CLAUDE.md there.

@@ -1254,6 +1254,8 @@ def run(
     extent: tuple[float, float, float, float] | None = None,
     output_path: Path | str | None = None,
     *,
+    recipe: "str | Recipe | None" = None,
+    recipe_dir: Path | str | None = None,
     input_boundary: Path | str | None = None,
     wms_url: str | None = None,
     wms_layer: str | None = None,
@@ -1261,7 +1263,7 @@ def run(
     map_size: int | None = None,
     cache_dir: Path | str | None = None,
     cache_key_prefix: str = "wms",
-    mode: str = "lines",
+    mode: str | None = None,
     line_color: str | None = None,
     line_color_rgb: tuple[int, int, int, int, int, int] | None = None,
     background_color: tuple[int, int, int] | None = None,
@@ -1269,9 +1271,9 @@ def run(
     line_channel: str | None = None,
     line_channel_min: int | None = None,
     line_channel_max: int | None = None,
-    area_background: str | tuple[int, int, int] = "alpha",
-    area_background_tolerance: int = 15,
-    area_alpha_min: int = 1,
+    area_background: str | tuple[int, int, int] | None = None,
+    area_background_tolerance: int | None = None,
+    area_alpha_min: int | None = None,
     max_hole_area_sq_m: float | None = None,
     download_only: bool | None = None,
     skip_getfeatureinfo: bool | None = None,
@@ -1309,6 +1311,55 @@ def run(
     Returns:
         Final parcel GeoDataFrame. Empty if download_only=True.
     """
+    # --- Recipe resolution ---
+    _recipe = None
+    if recipe is not None:
+        from gis_utils.recipes import (
+            Recipe as _RecipeCls,
+            load_recipe,
+            resolve_connection,
+        )
+        if isinstance(recipe, str):
+            _recipe = load_recipe(recipe, project_dir=Path(recipe_dir) if recipe_dir else None)
+        else:
+            _recipe = recipe
+        _conn = resolve_connection(_recipe)
+        _det = _recipe.detection
+        # Connection: explicit params override recipe
+        wms_url = wms_url or _conn.get("wms_url")
+        wms_layer = wms_layer or _conn.get("wms_layer")
+        crs = crs or _conn.get("crs")
+        # Detection: explicit params override recipe
+        mode = mode or _det.get("mode")
+        line_color = line_color or _det.get("line_color")
+        line_color_rgb = line_color_rgb or _det.get("line_color_rgb")
+        background_color = background_color or _det.get("background_color")
+        background_tolerance = background_tolerance if background_tolerance is not None else _det.get("background_tolerance")
+        line_channel = line_channel or _det.get("line_channel")
+        line_channel_min = line_channel_min if line_channel_min is not None else _det.get("line_channel_min")
+        line_channel_max = line_channel_max if line_channel_max is not None else _det.get("line_channel_max")
+        if area_background is None:
+            area_background = _det.get("area_background")
+        if area_background_tolerance is None:
+            area_background_tolerance = _det.get("area_background_tolerance")
+        if area_alpha_min is None:
+            area_alpha_min = _det.get("area_alpha_min")
+        if max_hole_area_sq_m is None:
+            max_hole_area_sq_m = _det.get("max_hole_area_sq_m")
+        if skip_getfeatureinfo is None:
+            skip_getfeatureinfo = _det.get("skip_getfeatureinfo")
+        # Cache key from recipe name if not set
+        if cache_key_prefix == "wms" and _recipe.name:
+            cache_key_prefix = _recipe.name
+
+    # Apply defaults for area-mode params that may still be None
+    if area_background is None:
+        area_background = "alpha"
+    if area_background_tolerance is None:
+        area_background_tolerance = 15
+    if area_alpha_min is None:
+        area_alpha_min = 1
+
     _crs = crs or DEFAULT_CRS
     _mode = (mode or "lines").lower()
     if _mode not in ("lines", "areas"):
@@ -1538,13 +1589,60 @@ def run(
                 continue
             polygons_gdf[k] = [a.get(k, "") for a in attrs_list]
     else:
-        print("[run] skip_getfeatureinfo=True — writing shapefile with geometry only.", flush=True)
+        print("[run] skip_getfeatureinfo=True — writing with geometry only.", flush=True)
         polygons_gdf["id"] = range(1, len(polygons_gdf) + 1)
 
-    print("[run] Writing shapefile...", flush=True)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    polygons_gdf.to_file(output_path, driver="ESRI Shapefile")
-    print(f"[run] Written: {output_path}", flush=True)
+    # --- Recipe post-processing pipeline ---
+    if _recipe is not None:
+        from gis_utils.recipes import (
+            apply_attribute_mappings,
+            apply_column_mapping,
+            apply_post_processing,
+            load_and_run_hook,
+        )
+        _proj_dir = Path(recipe_dir) if recipe_dir else None
+
+        # 1. Attribute mappings: add _lbl columns
+        if _recipe.attribute_mappings:
+            print("[run] Applying attribute mappings...", flush=True)
+            apply_attribute_mappings(polygons_gdf, _recipe.attribute_mappings)
+
+        # 2. Declarative post-processing steps
+        if _recipe.post_processing:
+            print("[run] Applying post-processing steps...", flush=True)
+            polygons_gdf = apply_post_processing(polygons_gdf, _recipe.post_processing)
+
+        # 3. Python hook (post_process)
+        if _recipe.hooks:
+            print(f"[run] Running post-process hook: {_recipe.hooks}", flush=True)
+            polygons_gdf = load_and_run_hook(
+                _recipe.hooks, "post_process", polygons_gdf, _proj_dir,
+            )
+
+        # 4. Column renaming (last, so mappings use original names)
+        if _recipe.column_mapping:
+            is_shp = output_path is not None and str(output_path).lower().endswith(".shp")
+            print("[run] Applying column mapping...", flush=True)
+            polygons_gdf = apply_column_mapping(
+                polygons_gdf, _recipe.column_mapping, is_shapefile=is_shp,
+            )
+
+    # --- Write output ---
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        ext = output_path.suffix.lower()
+        if ext == ".shp":
+            driver = "ESRI Shapefile"
+        elif ext in (".gpkg", ".geopackage"):
+            driver = "GPKG"
+        elif ext == ".geojson":
+            driver = "GeoJSON"
+        else:
+            driver = "GPKG"  # default to GeoPackage
+        print(f"[run] Writing output ({driver})...", flush=True)
+        polygons_gdf.to_file(output_path, driver=driver)
+        print(f"[run] Written: {output_path}", flush=True)
+
     return polygons_gdf
 
 

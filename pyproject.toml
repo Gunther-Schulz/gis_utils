@@ -28,5 +28,8 @@ gis-workflow = "gis_utils.runner:main"
 [project.urls]
 Repository = "https://github.com/Gunther-Schulz/gis_utils"
 
+[tool.setuptools.package-data]
+gis_utils = ["sources/*.yaml", "sources/hooks/*.py"]
+
 [tool.setuptools.packages.find]
 where = ["src"]

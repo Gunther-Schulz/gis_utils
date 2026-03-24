@@ -1,0 +1,57 @@
+name: mv_bodenschaetzung
+description: "Bodenschätzung (BOSIS MV), Bodenschätzwerte WMS"
+tags: [boden, bodenschaetzung, bodenschätzung, BOSIS, acker, grünland, MV]
+
+connection:
+  url: "https://www.geodaten-mv.de/dienste/bodenschaetzwerte_wms"
+  qgis_name: "MV bodenschaetzwerte_wms"
+  layer: "BOSIS_MV_gesamt"
+  crs: "EPSG:25833"
+
+detection:
+  mode: lines
+  line_color: green
+
+# Attribute fields returned by GetFeatureInfo:
+#   boa_kurzwert  - Bodenart (soil type short code)
+#   bos_kurzwert  - Bodenstufe (soil horizon/stage)
+#   ena_kurzwert  - Entstehungsart (origin type)
+#   kls_kurzwert  - Klasse
+#   nut           - Nutzungsart (land use type code)
+#   wav_kurzwert  - Wertzahl-Abweichung
+#   we1           - Bodenzahl / Grünlandgrundzahl
+#   we2           - Ackerzahl / Grünlandzahl
+#   zus_kurzwert  - Zustandsstufe
+#   label         - Combined Bodenschätzung notation (e.g. "SL3D#54/50")
+#   id, objid     - Internal identifiers
+attribute_mappings:
+  boa_kurzwert:
+    "S": "Sand"
+    "Sl": "anlehmiger Sand"
+    "lS": "lehmiger Sand"
+    "SL": "stark lehmiger Sand"
+    "sL": "sandiger Lehm"
+    "L": "Lehm"
+    "LT": "schwerer Lehm"
+    "T": "Ton"
+    "Mo": "Moor"
+  ena_kurzwert:
+    "D": "Diluvium (eiszeitlich)"
+    "Al": "Alluvium (Schwemmland)"
+    "Lö": "Löss"
+    "V": "Verwitterung"
+    "Vg": "Gesteinsverwitterung"
+  nut:
+    "1000": "Ackerland"
+    "2000": "Grünland"
+    "3000": "Gartenland"
+
+column_mapping:
+  boa_kurzwert: bodenart
+  boa_kurzwert_lbl: bodenart_b
+  ena_kurzwert: entstehung
+  ena_kurzwert_lbl: entst_bez
+  nut: nutzung
+  nut_lbl: nutzung_bez
+  we1: bodenzahl
+  we2: ackerzahl

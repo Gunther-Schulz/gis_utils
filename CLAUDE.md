@@ -49,8 +49,23 @@ All common functions importable from top level: `from gis_utils import ...`
 - `from gis_utils.osm import download_osm_polygons` — download polygon features from OpenStreetMap Overpass API
 - `from gis_utils.osm import bbox_from_shapefile` — get WGS84 bounding box from a shapefile
 
+### Recipes (Source Profiles)
+- `load_recipe(name, project_dir=None)` — load a source recipe by name (searches project `sources/` then library defaults)
+- `list_recipes(project_dir=None, search=None)` — find available recipes by name/description/tags
+- `apply_attribute_mappings(gdf, mappings)` — add `_lbl` label columns from value maps
+- Shipped recipes: `mv_moore` (kohlenstoffreiche Böden/Moore), `mv_bodenschaetzung` (Bodenschätzwerte)
+- Recipe YAMLs define: connection (URL, layer, CRS), detection mode, attribute value mappings, column renaming, post-processing steps, optional Python hooks
+- When a user wants a WMS/WFS source that has no recipe yet:
+  1. Query GetCapabilities to discover available layers
+  2. Sample GetFeatureInfo at multiple points to discover attribute fields and values
+  3. Discuss naming and description with the user
+  4. Create a recipe YAML in the project's `sources/` directory (or add to library)
+  5. Research and populate attribute value mappings from official documentation
+
 ### Heavy/Specialized (import from submodule)
-- `from gis_utils.wms import run` — WMS download, line/area detection, vectorization to shapefile
+- `run_recipe(recipe, input_boundary=..., output_path=...)` — highest-level API: auto-dispatches to WFS download or WMS vectorization based on recipe connection type
+- `from gis_utils.wfs import download` — WFS direct vector download (no raster conversion needed)
+- `from gis_utils.wms import run` — WMS download, line/area detection, vectorization to GeoPackage/shapefile. Accepts `recipe="name"` for predefined sources.
 - `from gis_utils.grass import main` — GRASS GIS raster skeletonization to centerline GeoJSON
 
 ### Workflow Runner
