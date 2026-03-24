@@ -1,0 +1,15 @@
+name: osm_siedlungsflaechen
+description: "Siedlungsflächen aus OpenStreetMap (Wohn-, Gewerbe-, Industriegebiete, Ortschaften)"
+tags: [siedlung, ortschaft, wohngebiet, gewerbe, industrie, OSM, openstreetmap]
+
+connection:
+  type: osm
+  tags:
+    landuse: "^(residential|commercial|industrial|retail)$"
+    place: "^(city|town|village|hamlet|suburb|neighbourhood)$"
+
+detection:
+  dissolve: true
+
+post_processing:
+  - remove_inner_rings: {}

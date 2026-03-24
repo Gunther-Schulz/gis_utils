@@ -144,6 +144,10 @@ def resolve_connection(recipe: Recipe) -> dict[str, str]:
     url = conn.get("url")
     conn_type = conn.get("type", "wms").lower()
 
+    # OSM recipes don't need a URL
+    if conn_type == "osm":
+        return {"type": "osm"}
+
     if not url and conn.get("qgis_name"):
         from gis_utils.qgis_catalog import qgis_connection
         qc = qgis_connection(conn["qgis_name"])
@@ -304,7 +308,7 @@ def run_recipe(
     recipe_dir: "Path | str | None" = None,
     **kwargs,
 ) -> "gpd.GeoDataFrame":
-    """Run a recipe, automatically dispatching to WFS or WMS based on connection type.
+    """Run a recipe, automatically dispatching to WFS, WMS, or OSM based on connection type.
 
     This is the simplest way to use a recipe — just provide the recipe name
     and where you want the output.
@@ -315,7 +319,7 @@ def run_recipe(
         extent: (minx, miny, maxx, maxy) bounding box.
         output_path: Output file (.gpkg recommended, .shp supported).
         recipe_dir: Project directory for recipe search.
-        **kwargs: Additional arguments passed to the underlying WMS/WFS function.
+        **kwargs: Additional arguments passed to the underlying function.
 
     Returns:
         GeoDataFrame with the result.
@@ -328,9 +332,14 @@ def run_recipe(
     conn = resolve_connection(_recipe)
     conn_type = conn.get("type", "wms")
 
-    if conn_type == "wfs":
+    if conn_type == "osm":
+        gdf = _run_osm_recipe(
+            _recipe, input_boundary=input_boundary, extent=extent,
+            output_path=output_path, recipe_dir=recipe_dir, **kwargs,
+        )
+    elif conn_type == "wfs":
         from gis_utils.wfs import download
-        return download(
+        gdf = download(
             url=conn["wfs_url"],
             layer=conn.get("layer", ""),
             extent=extent,
@@ -344,7 +353,7 @@ def run_recipe(
         )
     else:
         from gis_utils.wms import run
-        return run(
+        gdf = run(
             extent=extent,
             output_path=output_path,
             input_boundary=input_boundary,
@@ -352,3 +361,76 @@ def run_recipe(
             recipe_dir=recipe_dir,
             **kwargs,
         )
+    return gdf
+
+
+def _run_osm_recipe(
+    recipe: Recipe,
+    *,
+    input_boundary: "Path | str | None" = None,
+    extent: tuple[float, float, float, float] | None = None,
+    output_path: "Path | str | None" = None,
+    recipe_dir: "Path | str | None" = None,
+    crs: str | None = None,
+    **kwargs,
+) -> "gpd.GeoDataFrame":
+    """Run an OSM recipe via download_osm_polygons."""
+    from gis_utils.osm import bbox_from_shapefile, download_osm_polygons
+
+    _crs = crs or recipe.connection.get("crs", "EPSG:25833")
+
+    # Get bbox in WGS84
+    if extent is not None:
+        # extent is in project CRS, need WGS84 for OSM
+        import geopandas as _gpd
+        from shapely.geometry import box as _box
+        _gdf = _gpd.GeoDataFrame(geometry=[_box(*extent)], crs=_crs)
+        b = _gdf.to_crs("EPSG:4326").total_bounds
+        bbox_wgs84 = tuple(b)
+    elif input_boundary is not None:
+        bbox_wgs84 = bbox_from_shapefile(input_boundary, crs="EPSG:4326")
+    else:
+        raise ValueError("OSM recipe requires input_boundary or extent")
+
+    tags = recipe.connection.get("tags")
+    dissolve = recipe.detection.get("dissolve", True)
+
+    print(f"[osm] Running recipe '{recipe.name}'...", flush=True)
+    gdf = download_osm_polygons(bbox_wgs84, tags=tags, crs=_crs, dissolve=dissolve, **kwargs)
+
+    # Apply recipe post-processing pipeline
+    _proj_dir = Path(recipe_dir) if recipe_dir else None
+
+    if recipe.attribute_mappings:
+        apply_attribute_mappings(gdf, recipe.attribute_mappings)
+
+    if recipe.post_processing:
+        print("[osm] Applying post-processing steps...", flush=True)
+        gdf = apply_post_processing(gdf, recipe.post_processing)
+
+    if recipe.hooks:
+        print(f"[osm] Running post-process hook: {recipe.hooks}", flush=True)
+        gdf = load_and_run_hook(recipe.hooks, "post_process", gdf, _proj_dir)
+
+    if recipe.column_mapping:
+        is_shp = output_path is not None and str(output_path).lower().endswith(".shp")
+        gdf = apply_column_mapping(gdf, recipe.column_mapping, is_shapefile=is_shp)
+
+    # Write output
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        ext = output_path.suffix.lower()
+        if ext == ".shp":
+            driver = "ESRI Shapefile"
+        elif ext in (".gpkg", ".geopackage"):
+            driver = "GPKG"
+        elif ext == ".geojson":
+            driver = "GeoJSON"
+        else:
+            driver = "GPKG"
+        print(f"[osm] Writing output ({driver})...", flush=True)
+        gdf.to_file(output_path, driver=driver)
+        print(f"[osm] Written: {output_path}", flush=True)
+
+    return gdf
