@@ -5,6 +5,10 @@ GIS/CAD utility library. Installed as editable in conda env `gis`:
 pip install -e ~/dev/Gunther-Schulz/gis_utils
 ```
 
+## Alpha stage — no backward compatibility
+
+This library is in alpha. Do not add backward-compatibility shims, deprecated aliases, re-exports of renamed symbols, or any code whose sole purpose is keeping old callers working. When something changes, just change it. All callers are in our own projects and can be updated immediately.
+
 ## CRITICAL: No dangerous defaults or silent fallbacks
 
 **Be extremely careful with default parameter values and fallback patterns** (e.g. `x = x or SOME_DEFAULT`). Silent defaults can cause hard-to-detect data corruption. Rules:
