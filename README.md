@@ -4,7 +4,14 @@ GIS/CAD utility library and project workflow runner.
 
 ## Install
 
-Editable install (recommended for development — edits take effect immediately):
+```bash
+conda activate gis
+pip install gis-utils
+```
+
+### Development install
+
+For contributing or modifying the library (edits take effect immediately):
 
 ```bash
 conda activate gis
@@ -48,7 +55,7 @@ gis-workflow --step "Step Name"
 gis-workflow init [project_dir]
 ```
 
-Steps marked `run: once` are skipped if their outputs already exist.
+Steps marked `run: auto` (default) are skipped if outputs exist and are up-to-date.
 Steps marked `run: always` execute every time.
 Dependencies are resolved automatically (topological sort).
 
