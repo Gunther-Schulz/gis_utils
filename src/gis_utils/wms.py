@@ -86,10 +86,7 @@ DEFAULT_INPUT_BOUNDARY = None  # set per project or pass input_boundary= to run(
 DEFAULT_OUTPUT_SHP = None  # pass output_path= to run()
 CACHE_DIR = PROJECT_ROOT / CACHE_DIR_NAME
 
-# Backwards compatibility
-CRS = DEFAULT_CRS
-WMS_URL = DEFAULT_WMS_URL
-WMS_LAYER = DEFAULT_WMS_LAYER
+# Legacy constants — do NOT use as fallbacks. Kept only for reference.
 MAP_SIZE = DEFAULT_MAP_SIZE or 4192
 
 
@@ -216,7 +213,7 @@ def _stitch_tile_rasters(
 
 def get_bounds_from_shape(
     shape_path: Path | str,
-    crs: str = DEFAULT_CRS,
+    crs: str,
 ) -> tuple[float, float, float, float]:
     """Return (minx, miny, maxx, maxy) from the bounding box of the shapefile in given CRS."""
     shape_path = Path(shape_path)
@@ -1283,11 +1280,11 @@ def run(
 
     Args:
         extent: (minx, miny, maxx, maxy) in crs. If None, required: input_boundary (bounds taken from that shape).
-        output_path: Path for output shapefile. Written unless download_only=True. Default from DEFAULT_OUTPUT_SHP when extent from input_boundary.
+        output_path: Path for output file (.gpkg or .shp). Required unless download_only=True.
         input_boundary: Shapefile path for extent when extent is None. Required if extent is None. Ignored if extent is given.
-        wms_url: WMS GetMap/GetFeatureInfo URL. Default: DEFAULT_WMS_URL.
-        wms_layer: WMS layer name. Default: DEFAULT_WMS_LAYER.
-        crs: CRS for bbox and output (e.g. EPSG:25833). Default: DEFAULT_CRS.
+        wms_url: WMS GetMap/GetFeatureInfo URL. Required.
+        wms_layer: WMS layer name. Required.
+        crs: CRS for bbox and output (e.g. EPSG:25833). Required.
         map_size: Pixels on longest side; None = auto from GetCapabilities. Default: None.
         cache_dir: Directory for cached rasters. Default: project cache dir.
         cache_key_prefix: Prefix for cache filename (e.g. 'wms' or 'bodengeologie'). Default: 'wms'.
@@ -1371,8 +1368,7 @@ def run(
             raise ValueError("Either extent or input_boundary must be provided")
         extent = get_bounds_from_shape(input_boundary, crs=_crs)
         if output_path is None:
-            output_path = DEFAULT_OUTPUT_SHP
-    _out = output_path or DEFAULT_OUTPUT_SHP
+    _out = output_path
     if not _out and (DOWNLOAD_ONLY if download_only is None else download_only) is False:
         raise ValueError("output_path is required when not download_only")
     output_path = Path(_out) if _out else None
@@ -1648,15 +1644,15 @@ def run(
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="WMS to shapefile: download layer, vectorize line boundaries to polygons")
-    ap.add_argument("--input-boundary", type=Path, default=None, metavar="PATH",
-        help=f"Boundary shapefile for extent (default: {DEFAULT_INPUT_BOUNDARY})")
-    ap.add_argument("--output", "-o", type=Path, default=None, metavar="PATH",
-        help=f"Output shapefile path (default: {DEFAULT_OUTPUT_SHP})")
-    ap.add_argument("--wms-url", default=None, metavar="URL",
-        help=f"WMS GetMap URL (default: {DEFAULT_WMS_URL})")
-    ap.add_argument("--layer", default=None, dest="wms_layer", metavar="NAME",
-        help=f"WMS layer name (default: {DEFAULT_WMS_LAYER})")
-    ap.add_argument("--crs", default=None, help=f"CRS for bbox and output (default: {DEFAULT_CRS})")
+    ap.add_argument("--input-boundary", type=Path, required=True, metavar="PATH",
+        help="Boundary shapefile for extent")
+    ap.add_argument("--output", "-o", type=Path, required=True, metavar="PATH",
+        help="Output file path (.gpkg or .shp)")
+    ap.add_argument("--wms-url", required=True, metavar="URL",
+        help="WMS GetMap URL")
+    ap.add_argument("--layer", required=True, dest="wms_layer", metavar="NAME",
+        help="WMS layer name")
+    ap.add_argument("--crs", required=True, help="CRS for bbox and output (e.g. EPSG:25833)")
     ap.add_argument("--map-size", default=None, metavar="N|auto",
         help="Pixels on longest side; 'auto' or omit = from GetCapabilities (default: auto)")
     ap.add_argument("--max-hole-area", metavar="M2|none", default=None,
@@ -1686,13 +1682,13 @@ def main() -> None:
         help="Query GetFeatureInfo to get WMS attribute data (default when omitted: use script constant)")
     args = ap.parse_args()
 
-    input_boundary = args.input_boundary or DEFAULT_INPUT_BOUNDARY
-    output_path = args.output or DEFAULT_OUTPUT_SHP
-    if not input_boundary or not output_path:
-        print("[main] --input-boundary and --output are required (no project defaults in gis_utils).", file=sys.stderr, flush=True)
-        sys.exit(1)
+    input_boundary = args.input_boundary
+    output_path = args.output
     mode_val = (args.mode or "lines").lower()
-    line_color_val = None if mode_val == "areas" else (args.line_color or DEFAULT_LINE_COLOR)
+    line_color_val = args.line_color if mode_val != "areas" else None
+    if mode_val == "lines" and not line_color_val and not args.line_color_rgb and not args.line_channel:
+        print("[main] When --mode=lines, one of --line-color, --line-color-rgb, or --line-channel is required.", file=sys.stderr, flush=True)
+        sys.exit(1)
 
     line_color_rgb_val = None
     if args.line_color_rgb is not None:
@@ -1799,13 +1795,6 @@ def main() -> None:
         max_hole_area_sq_m=max_hole_area_sq_m,
         skip_getfeatureinfo=skip_getfeatureinfo_val,
     )
-
-
-def get_planungsbereich_bounds() -> tuple[float, float, float, float]:
-    """Backwards compatibility: bounds from DEFAULT_INPUT_BOUNDARY. Prefer get_bounds_from_shape(path, crs)."""
-    if DEFAULT_INPUT_BOUNDARY is None:
-        raise ValueError("DEFAULT_INPUT_BOUNDARY not set; use get_bounds_from_shape(path, crs) with explicit path.")
-    return get_bounds_from_shape(DEFAULT_INPUT_BOUNDARY, DEFAULT_CRS)
 
 
 if __name__ == "__main__":
