@@ -28,6 +28,7 @@ class Recipe:
     column_mapping: dict[str, str] = field(default_factory=dict)
     post_processing: list[dict[str, Any]] = field(default_factory=list)
     hooks: str | None = None
+    exclude_tags: dict[str, str] = field(default_factory=dict)
     _source_path: Path | None = field(default=None, repr=False)
 
 
@@ -70,6 +71,7 @@ def _parse_recipe(data: dict, source_path: Path | None = None) -> Recipe:
         column_mapping=data.get("column_mapping", {}),
         post_processing=data.get("post_processing", []),
         hooks=data.get("hooks"),
+        exclude_tags=data.get("exclude_tags", {}),
         _source_path=source_path,
     )
 
@@ -411,6 +413,23 @@ def _run_osm_recipe(
     _cache_hit = _osm_cache_file.exists()
 
     gdf = download_osm_polygons(bbox_wgs84, tags=tags, crs=_crs, dissolve=dissolve, **kwargs)
+
+    # Apply exclude_tags filter: drop rows where specified columns match patterns
+    if recipe.exclude_tags and len(gdf) > 0:
+        import re
+        drop_mask = None
+        for col, pattern in recipe.exclude_tags.items():
+            osm_col = col.replace(":", "_")
+            if osm_col not in gdf.columns:
+                continue
+            col_match = gdf[osm_col].fillna("").astype(str).str.match(pattern)
+            drop_mask = col_match if drop_mask is None else (drop_mask | col_match)
+        if drop_mask is not None:
+            n_before = len(gdf)
+            gdf = gdf[~drop_mask].copy()
+            n_dropped = n_before - len(gdf)
+            if n_dropped > 0:
+                print(f"  Excluded {n_dropped} features by exclude_tags filter")
 
     # Apply recipe post-processing pipeline
     _proj_dir = Path(recipe_dir) if recipe_dir else None

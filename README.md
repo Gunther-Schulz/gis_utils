@@ -46,10 +46,10 @@ Each project has a `workflow.yaml` defining the execution pipeline.
 gis-workflow run
 
 # Preview execution plan
-gis-workflow --dry-run
+gis-workflow run --dry-run
 
 # Run single step + its dependencies
-gis-workflow --step "Step Name"
+gis-workflow run --step "Step Name"
 
 # Initialize new project
 gis-workflow init [project_dir]

@@ -320,7 +320,7 @@ CLAUDE_MD_CONTENT = """\
 
 ## Environment
 - Conda env: `gis`
-- Workflow: `gis-workflow` (run), `gis-workflow --dry-run` (plan), `gis-workflow --step "Name"` (single step)
+- Workflow: `gis-workflow run` (run all), `gis-workflow run --dry-run` (plan), `gis-workflow run --step "Name"` (single step)
 - Scripts in `scripts/`, old scripts in `deprecated_scripts/` (frozen, do not modify)
 
 ## Working on this project
@@ -332,6 +332,7 @@ When the user asks for a GIS task in this project:
    - **Library addition?** If the logic is reusable across projects, add it to `gis_utils` first, then use it in a script or recipe.
 3. **Update `workflow.yaml`** with new steps, correct dependencies and run modes (`auto` or `always`)
 4. **Test with** `gis-workflow run --dry-run` before running
+5. **Always run the full workflow** (`gis-workflow run`) so all outputs are up to date. If you use `--step` during development, explicitly tell the user that only a subset ran and other outputs may be stale.
 
 ### What goes WHERE
 - **Recipe step in workflow.yaml** (no script): downloading/fetching data from WMS, WFS, OSM sources. Use `recipe:` directly in the step definition.

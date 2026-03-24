@@ -83,5 +83,5 @@ All common functions importable from top level: `from gis_utils import ...`
 - `from gis_utils.grass import main` — GRASS GIS raster skeletonization to centerline GeoJSON
 
 ### Workflow Runner
-- CLI: `gis-workflow run [project_dir]`, `gis-workflow --dry-run`, `gis-workflow --step "Name"`
+- CLI: `gis-workflow run [project_dir]`, `gis-workflow run --dry-run`, `gis-workflow run --step "Name"`
 - Init: `gis-workflow init [project_dir]` — creates workflow.yaml, scripts/, CLAUDE.md

@@ -9,3 +9,12 @@ connection:
 
 detection:
   dissolve: false
+
+# Drop buildings that have non-residential indicator tags
+exclude_tags:
+  shop: ".+"
+  amenity: ".+"
+  office: ".+"
+  craft: ".+"
+  tourism: ".+"
+  leisure: ".+"

@@ -115,14 +115,17 @@ def download_osm_polygons(
         geom = _parse_osm_element(element)
         if geom is None or geom.is_empty:
             continue
-        features.append({
+        feature = {
             "osm_id": element.get("id"),
             "osm_type": element.get("type"),
-            "name": tags_data.get("name", ""),
-            "landuse": tags_data.get("landuse", ""),
-            "place": tags_data.get("place", ""),
             "geometry": geom,
-        })
+        }
+        # Preserve all OSM tags as columns
+        for k, v in tags_data.items():
+            # Prefix addr: and similar namespaced tags
+            col = k.replace(":", "_")
+            feature[col] = v
+        features.append(feature)
 
     if not features:
         print("  No valid geometries found")

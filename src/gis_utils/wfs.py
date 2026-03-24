@@ -7,23 +7,22 @@ Use this when a WFS endpoint is available for the data source.
 from __future__ import annotations
 
 import hashlib
-import io
+import re
 from pathlib import Path
 
 import geopandas as gpd
-import requests
 
 CACHE_DIR_NAME = "download_cache"
 
 
-def _cache_key(layer: str, extent: tuple | None, crs: str) -> str:
+def _cache_key(layer: str, extent: tuple | None, crs: str, filter_hash: str = "") -> str:
     """Build a deterministic cache filename from request parameters."""
-    parts = [layer, crs]
+    parts = [layer, crs, filter_hash]
     if extent:
         parts.extend(f"{v:.0f}" for v in extent)
     raw = "_".join(parts)
     short_hash = hashlib.md5(raw.encode()).hexdigest()[:8]
-    safe_layer = layer.replace("/", "_").replace("\\", "_")
+    safe_layer = layer.replace("/", "_").replace("\\", "_").replace(":", "_")
     if extent:
         minx, miny, maxx, maxy = extent
         return f"{safe_layer}_{minx:.0f}_{miny:.0f}_{maxx:.0f}_{maxy:.0f}_{short_hash}.gpkg"
@@ -38,7 +37,7 @@ def download(
     input_boundary: Path | str | None = None,
     output_path: Path | str | None = None,
     crs: str | None = None,
-    version: str = "1.1.0",
+    version: str = "2.0.0",
     max_features: int | None = None,
     cache_dir: Path | str | None = None,
     no_cache: bool = False,
@@ -49,12 +48,12 @@ def download(
 
     Args:
         url: WFS service URL.
-        layer: Feature type name (e.g. 't7_moor_kbk25').
+        layer: Feature type name (e.g. 'adv:AX_Gebaeude').
         extent: (minx, miny, maxx, maxy) bounding box filter in crs.
         input_boundary: Shapefile/GeoPackage to derive extent from.
         output_path: Output file path (.gpkg or .shp). If None, no file written.
         crs: CRS for the request and output.
-        version: WFS version (default '1.1.0').
+        version: WFS version (default '2.0.0').
         max_features: Limit number of features returned.
         cache_dir: Directory for cached downloads. Default: download_cache/ in cwd.
         no_cache: If True, skip cache and always download fresh.
@@ -86,45 +85,58 @@ def download(
         boundary_gdf = boundary_gdf.to_crs(crs)
         extent = tuple(boundary_gdf.total_bounds)
 
+    # Build filter hash for cache key (includes exclude_tags so cache invalidates on filter change)
+    filter_hash = ""
+    if _recipe and _recipe.exclude_tags:
+        filter_hash = hashlib.md5(str(sorted(_recipe.exclude_tags.items())).encode()).hexdigest()[:6]
+
     # --- Cache check ---
     _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
-    cache_file = _cache_dir / _cache_key(layer, extent, crs)
+    cache_file = _cache_dir / _cache_key(layer, extent, crs, filter_hash)
     _cache_hit = False
 
     if not no_cache and cache_file.exists():
         gdf = gpd.read_file(cache_file)
         _cache_hit = True
     else:
-        print(f"[wfs] Downloading features from {layer}...", flush=True)
+        print(f"[wfs] Downloading {layer}...", flush=True)
         if extent:
-            print(f"[wfs] Extent ({crs}): {extent}", flush=True)
+            print(f"[wfs] Extent ({crs}): {extent[0]:.0f},{extent[1]:.0f} — {extent[2]:.0f},{extent[3]:.0f}", flush=True)
 
-        params = {
-            "SERVICE": "WFS",
-            "VERSION": version,
-            "REQUEST": "GetFeature",
-            "TYPENAME": layer,
-            "SRSNAME": crs,
-        }
+        # Use geopandas OGR WFS driver — handles complex GML (NAS, INSPIRE) reliably
+        wfs_uri = f"WFS:{url}"
+        read_kwargs = {"layer": layer}
         if extent:
-            minx, miny, maxx, maxy = extent
-            params["BBOX"] = f"{minx},{miny},{maxx},{maxy},{crs}"
+            read_kwargs["bbox"] = extent
         if max_features:
-            params["MAXFEATURES"] = str(max_features)
+            read_kwargs["max_features"] = max_features
 
-        r = requests.get(url, params=params, timeout=120)
-        r.raise_for_status()
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Field with same name")
+            gdf = gpd.read_file(wfs_uri, **read_kwargs)
 
-        if b"Exception" in r.content:
-            raise RuntimeError(f"WFS error: {r.text[:500]}")
-
-        gdf = gpd.read_file(io.BytesIO(r.content))
         if gdf.crs is None:
             gdf = gdf.set_crs(crs)
         else:
             gdf = gdf.to_crs(crs)
 
         print(f"[wfs] Downloaded {len(gdf)} features", flush=True)
+
+        # Apply exclude_tags filter before caching
+        if _recipe and _recipe.exclude_tags and len(gdf) > 0:
+            drop_mask = None
+            for col, pattern in _recipe.exclude_tags.items():
+                if col not in gdf.columns:
+                    continue
+                col_match = gdf[col].fillna("").astype(str).str.match(pattern)
+                drop_mask = col_match if drop_mask is None else (drop_mask | col_match)
+            if drop_mask is not None:
+                n_before = len(gdf)
+                gdf = gdf[~drop_mask].copy()
+                n_dropped = n_before - len(gdf)
+                if n_dropped > 0:
+                    print(f"[wfs] Excluded {n_dropped} features by exclude_tags filter", flush=True)
 
         _cache_dir.mkdir(parents=True, exist_ok=True)
         gdf.to_file(cache_file, driver="GPKG")
