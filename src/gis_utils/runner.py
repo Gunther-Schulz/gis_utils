@@ -326,14 +326,17 @@ CLAUDE_MD_CONTENT = """\
 ## Working on this project
 When the user asks for a GIS task in this project:
 1. **Read `workflow.yaml`** first to understand existing pipeline steps and dependencies
-2. **Decide scope:** Is the task project-specific (→ add to `scripts/` and `workflow.yaml`) or generally reusable (→ add to `gis_utils` library, then use in script)?
-3. **Create/edit scripts** in `scripts/` that import from `gis_utils`
-4. **Update `workflow.yaml`** with new steps, correct dependencies and run modes
-5. **Test with** `gis-workflow --dry-run` before running
+2. **Decide implementation approach** — always ask yourself before coding:
+   - **Recipe step?** If the task is "get data from source X" and a recipe exists (or should be created), use a recipe step directly in workflow.yaml. No script needed.
+   - **Script?** If the task combines project-specific inputs, does custom logic, or orchestrates multiple gis_utils calls, write a script in `scripts/`.
+   - **Library addition?** If the logic is reusable across projects, add it to `gis_utils` first, then use it in a script or recipe.
+3. **Update `workflow.yaml`** with new steps, correct dependencies and run modes (`auto` or `always`)
+4. **Test with** `gis-workflow run --dry-run` before running
 
 ### What goes WHERE
+- **Recipe step in workflow.yaml** (no script): downloading/fetching data from WMS, WFS, OSM sources. Use `recipe:` directly in the step definition.
+- **`scripts/` (project-specific)**: project paths, project data, orchestration that calls gis_utils functions, reports, analysis, project-specific business logic
 - **`gis_utils` library** (shared): geometry operations, DXF tools, data format conversions, reporting helpers — anything another project might reuse. Source: run `pip show gis-utils` to find editable location (likely ~/dev/Gunther-Schulz/gis_utils). Read its CLAUDE.md for the full API.
-- **`scripts/` (project-specific)**: project paths, project data, orchestration that calls gis_utils functions, project-specific business logic
 
 ## gis_utils library
 This project uses `gis_utils` (installed as editable pip package).
