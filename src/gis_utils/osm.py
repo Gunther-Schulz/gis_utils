@@ -7,6 +7,8 @@ features from OSM, with dissolve and morphological filtering support.
 
 from __future__ import annotations
 
+import hashlib
+import time
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,27 @@ from gis_utils.geometry import remove_inner_rings
 # ---------------------------------------------------------------------------
 
 DEFAULT_OVERPASS_URL = "http://overpass-api.de/api/interpreter"
+CACHE_DIR_NAME = "download_cache"
+DEFAULT_CACHE_MAX_AGE_S = 86400  # 24 hours
+
+
+def _osm_cache_key(
+    bbox: tuple[float, float, float, float],
+    tags: dict[str, str],
+    crs: str,
+    dissolve: bool,
+) -> str:
+    """Build a deterministic cache filename from OSM query parameters."""
+    parts = [
+        f"{bbox[0]:.4f}_{bbox[1]:.4f}_{bbox[2]:.4f}_{bbox[3]:.4f}",
+        crs,
+        "dissolved" if dissolve else "raw",
+    ]
+    for k in sorted(tags):
+        parts.append(f"{k}={tags[k]}")
+    raw = "|".join(parts)
+    short_hash = hashlib.md5(raw.encode()).hexdigest()[:8]
+    return f"osm_{bbox[0]:.4f}_{bbox[1]:.4f}_{bbox[2]:.4f}_{bbox[3]:.4f}_{short_hash}.gpkg"
 
 
 def download_osm_polygons(
@@ -33,6 +56,9 @@ def download_osm_polygons(
     dissolve: bool = True,
     timeout: int = 180,
     overpass_url: str = DEFAULT_OVERPASS_URL,
+    cache_dir: Path | str | None = None,
+    cache_max_age_s: int = DEFAULT_CACHE_MAX_AGE_S,
+    no_cache: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Download polygon features from OpenStreetMap via the Overpass API.
@@ -46,6 +72,9 @@ def download_osm_polygons(
         dissolve: If True, dissolve touching/overlapping polygons into contiguous areas.
         timeout: Overpass API timeout in seconds.
         overpass_url: Overpass API endpoint.
+        cache_dir: Directory for cached downloads. Default: download_cache/ in cwd.
+        cache_max_age_s: Max age of cached file in seconds before re-downloading (default: 24h).
+        no_cache: If True, skip cache and always download fresh.
 
     Returns:
         GeoDataFrame with polygon geometries, area_m2, and area_ha columns.
@@ -56,6 +85,16 @@ def download_osm_polygons(
             "landuse": "^(residential|commercial|industrial|retail)$",
             "place": "^(city|town|village|hamlet|suburb|neighbourhood)$",
         }
+
+    # --- Cache check ---
+    _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
+    cache_file = _cache_dir / _osm_cache_key(bbox, tags, crs, dissolve)
+
+    if not no_cache and cache_file.exists():
+        age_s = time.time() - cache_file.stat().st_mtime
+        if age_s < cache_max_age_s:
+            print(f"[osm] Using cached data: {cache_file.name} ({age_s/3600:.1f}h old)", flush=True)
+            return gpd.read_file(cache_file)
 
     minx, miny, maxx, maxy = bbox
     bbox_str = f"{miny},{minx},{maxy},{maxx}"
@@ -103,6 +142,11 @@ def download_osm_polygons(
 
     if dissolve:
         gdf = _dissolve_polygons(gdf)
+
+    # Write to cache
+    _cache_dir.mkdir(parents=True, exist_ok=True)
+    gdf.to_file(cache_file, driver="GPKG")
+    print(f"  Cached: {cache_file.name}", flush=True)
 
     return gdf
 

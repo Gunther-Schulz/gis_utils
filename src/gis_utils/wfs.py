@@ -6,11 +6,30 @@ Use this when a WFS endpoint is available for the data source.
 
 from __future__ import annotations
 
+import hashlib
 import io
+import time
 from pathlib import Path
 
 import geopandas as gpd
 import requests
+
+CACHE_DIR_NAME = "download_cache"
+DEFAULT_CACHE_MAX_AGE_S = 86400  # 24 hours
+
+
+def _cache_key(layer: str, extent: tuple | None, crs: str) -> str:
+    """Build a deterministic cache filename from request parameters."""
+    parts = [layer, crs]
+    if extent:
+        parts.extend(f"{v:.0f}" for v in extent)
+    raw = "_".join(parts)
+    short_hash = hashlib.md5(raw.encode()).hexdigest()[:8]
+    safe_layer = layer.replace("/", "_").replace("\\", "_")
+    if extent:
+        minx, miny, maxx, maxy = extent
+        return f"{safe_layer}_{minx:.0f}_{miny:.0f}_{maxx:.0f}_{maxy:.0f}_{short_hash}.gpkg"
+    return f"{safe_layer}_{short_hash}.gpkg"
 
 
 def download(
@@ -23,6 +42,9 @@ def download(
     crs: str | None = None,
     version: str = "1.1.0",
     max_features: int | None = None,
+    cache_dir: Path | str | None = None,
+    cache_max_age_s: int = DEFAULT_CACHE_MAX_AGE_S,
+    no_cache: bool = False,
     recipe: "str | Recipe | None" = None,
     recipe_dir: Path | str | None = None,
 ) -> gpd.GeoDataFrame:
@@ -37,6 +59,9 @@ def download(
         crs: CRS for the request and output.
         version: WFS version (default '1.1.0').
         max_features: Limit number of features returned.
+        cache_dir: Directory for cached downloads. Default: download_cache/ in cwd.
+        cache_max_age_s: Max age of cached file in seconds before re-downloading (default: 24h).
+        no_cache: If True, skip cache and always download fresh.
         recipe: Recipe name or Recipe object for attribute mappings and post-processing.
         recipe_dir: Project directory for recipe search.
 
@@ -65,36 +90,53 @@ def download(
         boundary_gdf = boundary_gdf.to_crs(crs)
         extent = tuple(boundary_gdf.total_bounds)
 
-    print(f"[wfs] Downloading features from {layer}...", flush=True)
-    if extent:
-        print(f"[wfs] Extent ({crs}): {extent}", flush=True)
+    # --- Cache check ---
+    _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
+    cache_file = _cache_dir / _cache_key(layer, extent, crs)
+    gdf = None
 
-    params = {
-        "SERVICE": "WFS",
-        "VERSION": version,
-        "REQUEST": "GetFeature",
-        "TYPENAME": layer,
-        "SRSNAME": crs,
-    }
-    if extent:
-        minx, miny, maxx, maxy = extent
-        params["BBOX"] = f"{minx},{miny},{maxx},{maxy},{crs}"
-    if max_features:
-        params["MAXFEATURES"] = str(max_features)
+    if not no_cache and cache_file.exists():
+        age_s = time.time() - cache_file.stat().st_mtime
+        if age_s < cache_max_age_s:
+            print(f"[wfs] Using cached data: {cache_file.name} ({age_s/3600:.1f}h old)", flush=True)
+            gdf = gpd.read_file(cache_file)
 
-    r = requests.get(url, params=params, timeout=120)
-    r.raise_for_status()
+    if gdf is None:
+        print(f"[wfs] Downloading features from {layer}...", flush=True)
+        if extent:
+            print(f"[wfs] Extent ({crs}): {extent}", flush=True)
 
-    if b"Exception" in r.content:
-        raise RuntimeError(f"WFS error: {r.text[:500]}")
+        params = {
+            "SERVICE": "WFS",
+            "VERSION": version,
+            "REQUEST": "GetFeature",
+            "TYPENAME": layer,
+            "SRSNAME": crs,
+        }
+        if extent:
+            minx, miny, maxx, maxy = extent
+            params["BBOX"] = f"{minx},{miny},{maxx},{maxy},{crs}"
+        if max_features:
+            params["MAXFEATURES"] = str(max_features)
 
-    gdf = gpd.read_file(io.BytesIO(r.content))
-    if gdf.crs is None:
-        gdf = gdf.set_crs(crs)
-    else:
-        gdf = gdf.to_crs(crs)
+        r = requests.get(url, params=params, timeout=120)
+        r.raise_for_status()
 
-    print(f"[wfs] Downloaded {len(gdf)} features", flush=True)
+        if b"Exception" in r.content:
+            raise RuntimeError(f"WFS error: {r.text[:500]}")
+
+        gdf = gpd.read_file(io.BytesIO(r.content))
+        if gdf.crs is None:
+            gdf = gdf.set_crs(crs)
+        else:
+            gdf = gdf.to_crs(crs)
+
+        print(f"[wfs] Downloaded {len(gdf)} features", flush=True)
+
+        # Write to cache
+        _cache_dir.mkdir(parents=True, exist_ok=True)
+        gdf.to_file(cache_file, driver="GPKG")
+        print(f"[wfs] Cached: {cache_file.name}", flush=True)
 
     # --- Recipe post-processing pipeline ---
     if _recipe is not None:
