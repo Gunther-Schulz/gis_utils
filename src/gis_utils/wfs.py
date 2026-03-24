@@ -20,7 +20,7 @@ def download(
     extent: tuple[float, float, float, float] | None = None,
     input_boundary: Path | str | None = None,
     output_path: Path | str | None = None,
-    crs: str = "EPSG:25833",
+    crs: str | None = None,
     version: str = "1.1.0",
     max_features: int | None = None,
     recipe: "str | Recipe | None" = None,
@@ -54,7 +54,10 @@ def download(
         _conn = resolve_connection(_recipe)
         url = url or _conn.get("wfs_url") or _conn.get("wms_url", "")
         layer = layer or _conn.get("layer", "")
-        crs = crs or _conn.get("crs", "EPSG:25833")
+        crs = crs or _conn.get("crs")
+
+    if not crs:
+        raise ValueError("crs is required (e.g. 'EPSG:25833'). No silent defaults — wrong CRS causes silent data corruption.")
 
     # Resolve extent from input_boundary
     if extent is None and input_boundary is not None:

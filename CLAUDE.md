@@ -5,6 +5,16 @@ GIS/CAD utility library. Installed as editable in conda env `gis`:
 pip install -e ~/dev/Gunther-Schulz/gis_utils
 ```
 
+## CRITICAL: No dangerous defaults or silent fallbacks
+
+**Be extremely careful with default parameter values and fallback patterns** (e.g. `x = x or SOME_DEFAULT`). Silent defaults can cause hard-to-detect data corruption. Rules:
+
+- **CRS**: NEVER default to a specific EPSG code. Different projects use different zones (25832 vs 25833 etc.). A wrong CRS silently shifts geometries by hundreds of meters. Always require CRS explicitly.
+- **URLs, layer names, file paths**: NEVER hardcode project-specific values as defaults. Require them as parameters or get them from recipes.
+- **Any parameter where a wrong default produces valid-looking but incorrect output**: make it required, not optional with a default.
+- **Safe defaults are OK**: things like `timeout=120`, `dissolve=True`, `simplify_tolerance=1.0` — where a wrong value causes obvious failures or minor quality differences, not silent corruption.
+- **When in doubt**: require the parameter with no default. An explicit error is always better than silently wrong data.
+
 ## API Quick Reference
 
 All common functions importable from top level: `from gis_utils import ...`

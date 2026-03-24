@@ -316,9 +316,8 @@ def download_wms_raster(
     store_alpha: If True and image has alpha, save 4 bands (RGB + alpha) for area/opacity mode.
     If requested size would exceed WMS max (e.g. MaxWidth/MaxHeight), downloads in tiles and stitches.
     """
-    wms_url = wms_url or DEFAULT_WMS_URL
-    wms_layer = wms_layer or DEFAULT_WMS_LAYER
-    crs = crs or DEFAULT_CRS
+    if not wms_url or not wms_layer or not crs:
+        raise ValueError("wms_url, wms_layer, and crs are all required")
     cache_dir = cache_dir or CACHE_DIR
     cap = get_wms_max_size(wms_url)
     max_side = min(cap) if cap else 4192
@@ -1090,9 +1089,8 @@ def get_feature_info(
     info_format: 'gml' | 'text' | None. None = try GML first, then text (and cache for subsequent calls).
     """
     global _getfeatureinfo_format, _gfi_wms_error_logged
-    wms_url = wms_url or DEFAULT_WMS_URL
-    wms_layer = wms_layer or DEFAULT_WMS_LAYER
-    crs = crs or DEFAULT_CRS
+    if not wms_url or not wms_layer or not crs:
+        raise ValueError("wms_url, wms_layer, and crs are all required for GetFeatureInfo")
     i, j = map_to_pixel(px, py, minx, miny, maxx, maxy, width, height)
     fmt = info_format if info_format is not None else _getfeatureinfo_format
 
@@ -1360,7 +1358,9 @@ def run(
     if area_alpha_min is None:
         area_alpha_min = 1
 
-    _crs = crs or DEFAULT_CRS
+    _crs = crs
+    if not _crs:
+        raise ValueError("crs is required (e.g. 'EPSG:25833'). No silent defaults — wrong CRS causes silent data corruption.")
     _mode = (mode or "lines").lower()
     if _mode not in ("lines", "areas"):
         raise ValueError("mode must be 'lines' or 'areas'")
@@ -1411,7 +1411,7 @@ def run(
     minx_r, miny_r = transform * (0, height)
     maxx_r, maxy_r = transform * (width, 0)
     # GetFeatureInfo requires WIDTH/HEIGHT <= WMS max (e.g. 4192); use scaled dimensions when raster is stitched
-    _gfi_cap = (min(cap) if (cap := get_wms_max_size(wms_url or DEFAULT_WMS_URL)) else 4192)
+    _gfi_cap = (min(cap) if (cap := get_wms_max_size(wms_url)) else 4192)
     if max(width, height) > _gfi_cap:
         gfi_width = max(1, int(width * _gfi_cap / max(width, height)))
         gfi_height = max(1, int(height * _gfi_cap / max(width, height)))

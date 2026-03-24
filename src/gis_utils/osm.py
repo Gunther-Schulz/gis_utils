@@ -29,7 +29,7 @@ def download_osm_polygons(
     bbox: tuple[float, float, float, float],
     tags: dict[str, str] | None = None,
     *,
-    crs: str = "EPSG:25832",
+    crs: str,
     dissolve: bool = True,
     timeout: int = 180,
     overpass_url: str = DEFAULT_OVERPASS_URL,

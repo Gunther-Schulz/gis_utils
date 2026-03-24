@@ -345,7 +345,7 @@ def run_recipe(
             extent=extent,
             input_boundary=input_boundary,
             output_path=output_path,
-            crs=conn.get("crs", "EPSG:25833"),
+            crs=conn.get("crs"),
             version=conn.get("version", "1.1.0"),
             recipe=_recipe,
             recipe_dir=recipe_dir,
@@ -377,7 +377,9 @@ def _run_osm_recipe(
     """Run an OSM recipe via download_osm_polygons."""
     from gis_utils.osm import bbox_from_shapefile, download_osm_polygons
 
-    _crs = crs or recipe.connection.get("crs", "EPSG:25833")
+    _crs = crs or recipe.connection.get("crs")
+    if not _crs:
+        raise ValueError(f"Recipe '{recipe.name}': crs is required (in recipe connection or as argument). No silent CRS defaults.")
 
     # Get bbox in WGS84
     if extent is not None:

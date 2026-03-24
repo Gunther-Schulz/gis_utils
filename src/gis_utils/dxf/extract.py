@@ -459,7 +459,7 @@ def _build_feature(
 
 def extract_dxf_layers(
     dxf_path: str | Path,
-    crs: str = "EPSG:25833",
+    crs: str,
     *,
     layers: list[str] | None = None,
     exclude_layers: list[str] | None = None,
@@ -558,7 +558,7 @@ def extract_dxf_layers(
 
 def extract_dxf_circles(
     dxf_path: str | Path,
-    crs: str = "EPSG:25833",
+    crs: str,
     *,
     layers: list[str] | None = None,
     process_blocks: bool = True,

@@ -124,7 +124,7 @@ def area_report(
     intersect_label_col: str = "label",
     category_gdf: gpd.GeoDataFrame | None = None,
     category_col: str | None = None,
-    crs: str = "EPSG:25832",
+    crs: str,
     union_before_area: bool = True,
     title: str = "Area Report",
     number_format: str = ",.0f",

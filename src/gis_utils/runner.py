@@ -81,6 +81,9 @@ def should_skip(step: dict, project_dir: Path) -> bool:
     if step.get("run", "always") != "once":
         return False
     outputs = step.get("outputs", [])
+    # Recipe steps use singular 'output'
+    if not outputs and step.get("output"):
+        outputs = [step["output"]]
     if not outputs:
         return False
     return all((project_dir / out).exists() for out in outputs)
@@ -88,9 +91,13 @@ def should_skip(step: dict, project_dir: Path) -> bool:
 
 def run_step(step: dict, project_dir: Path, conda_env: str | None = None) -> bool:
     """Execute a single workflow step. Returns True on success."""
+    # Recipe steps: run directly via run_recipe()
+    if step.get("recipe"):
+        return _run_recipe_step(step, project_dir)
+
     script = step.get("script")
     if not script:
-        print(f"  [skip] No script defined")
+        print(f"  [skip] No script or recipe defined")
         return True
 
     script_path = project_dir / script
@@ -121,6 +128,57 @@ def run_step(step: dict, project_dir: Path, conda_env: str | None = None) -> boo
         return False
     except Exception as e:
         print(f"  [ERROR] {e}")
+        return False
+
+
+def _run_recipe_step(step: dict, project_dir: Path) -> bool:
+    """Execute a recipe-based workflow step."""
+    from gis_utils.recipes import run_recipe
+
+    recipe_name = step["recipe"]
+    output = step.get("output")
+    input_boundary = step.get("input_boundary")
+    crs = step.get("crs")
+    buffer_m = step.get("buffer_m")
+
+    kwargs = {}
+    if crs:
+        kwargs["crs"] = crs
+
+    # Resolve input_boundary relative to project dir
+    if input_boundary:
+        input_path = project_dir / input_boundary
+        if not input_path.exists():
+            print(f"  [ERROR] input_boundary not found: {input_path}")
+            return False
+
+        # Apply buffer if specified (expand extent for search radius)
+        if buffer_m:
+            import geopandas as gpd
+            if not crs:
+                raise ValueError(f"Recipe step '{step['name']}': crs is required when using buffer_m. No silent CRS defaults.")
+            _crs = crs
+            gdf = gpd.read_file(input_path).to_crs(_crs)
+            b = gdf.total_bounds
+            kwargs["extent"] = (
+                b[0] - buffer_m, b[1] - buffer_m,
+                b[2] + buffer_m, b[3] + buffer_m,
+            )
+        else:
+            kwargs["input_boundary"] = input_path
+
+    output_path = project_dir / output if output else None
+
+    try:
+        run_recipe(
+            recipe_name,
+            output_path=output_path,
+            recipe_dir=project_dir,
+            **kwargs,
+        )
+        return True
+    except Exception as e:
+        print(f"  [ERROR] Recipe '{recipe_name}' failed: {e}")
         return False
 
 
@@ -179,6 +237,11 @@ def run_workflow(
             print(f"  {prefix} {name} [{status}]{dep_str}")
             if step.get("script"):
                 print(f"        → {step['script']}")
+            elif step.get("recipe"):
+                detail = f"recipe:{step['recipe']}"
+                if step.get("output"):
+                    detail += f" → {step['output']}"
+                print(f"        → {detail}")
             continue
 
         if skip:
