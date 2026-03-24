@@ -339,28 +339,30 @@ def run_recipe(
         )
     elif conn_type == "wfs":
         from gis_utils.wfs import download
-        gdf = download(
-            url=conn["wfs_url"],
-            layer=conn.get("layer", ""),
-            extent=extent,
-            input_boundary=input_boundary,
-            output_path=output_path,
-            crs=conn.get("crs"),
-            version=conn.get("version", "1.1.0"),
-            recipe=_recipe,
-            recipe_dir=recipe_dir,
-            **kwargs,
-        )
+        wfs_kwargs = {
+            "url": conn["wfs_url"],
+            "layer": conn.get("layer", ""),
+            "extent": extent,
+            "input_boundary": input_boundary,
+            "output_path": output_path,
+            "crs": conn.get("crs"),
+            "version": conn.get("version", "1.1.0"),
+            "recipe": _recipe,
+            "recipe_dir": recipe_dir,
+        }
+        wfs_kwargs.update(kwargs)  # caller overrides recipe defaults
+        gdf = download(**wfs_kwargs)
     else:
         from gis_utils.wms import run
-        gdf = run(
-            extent=extent,
-            output_path=output_path,
-            input_boundary=input_boundary,
-            recipe=_recipe,
-            recipe_dir=recipe_dir,
-            **kwargs,
-        )
+        wms_kwargs = {
+            "extent": extent,
+            "output_path": output_path,
+            "input_boundary": input_boundary,
+            "recipe": _recipe,
+            "recipe_dir": recipe_dir,
+        }
+        wms_kwargs.update(kwargs)
+        gdf = run(**wms_kwargs)
     return gdf
 
 
