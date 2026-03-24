@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import io
-import time
 from pathlib import Path
 
 import geopandas as gpd
 import requests
 
 CACHE_DIR_NAME = "download_cache"
-DEFAULT_CACHE_MAX_AGE_S = 86400  # 24 hours
 
 
 def _cache_key(layer: str, extent: tuple | None, crs: str) -> str:
@@ -43,7 +41,6 @@ def download(
     version: str = "1.1.0",
     max_features: int | None = None,
     cache_dir: Path | str | None = None,
-    cache_max_age_s: int = DEFAULT_CACHE_MAX_AGE_S,
     no_cache: bool = False,
     recipe: "str | Recipe | None" = None,
     recipe_dir: Path | str | None = None,
@@ -60,7 +57,6 @@ def download(
         version: WFS version (default '1.1.0').
         max_features: Limit number of features returned.
         cache_dir: Directory for cached downloads. Default: download_cache/ in cwd.
-        cache_max_age_s: Max age of cached file in seconds before re-downloading (default: 24h).
         no_cache: If True, skip cache and always download fresh.
         recipe: Recipe name or Recipe object for attribute mappings and post-processing.
         recipe_dir: Project directory for recipe search.
@@ -96,10 +92,8 @@ def download(
     gdf = None
 
     if not no_cache and cache_file.exists():
-        age_s = time.time() - cache_file.stat().st_mtime
-        if age_s < cache_max_age_s:
-            print(f"[wfs] Using cached data: {cache_file.name} ({age_s/3600:.1f}h old)", flush=True)
-            gdf = gpd.read_file(cache_file)
+        print(f"[wfs] Using cached data: {cache_file.name}", flush=True)
+        gdf = gpd.read_file(cache_file)
 
     if gdf is None:
         print(f"[wfs] Downloading features from {layer}...", flush=True)

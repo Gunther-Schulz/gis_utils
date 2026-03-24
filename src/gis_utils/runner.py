@@ -77,7 +77,12 @@ def resolve_order(steps: list[dict]) -> list[dict]:
 
 
 def should_skip(step: dict, project_dir: Path) -> bool:
-    """Check if a 'once' step can be skipped (all outputs exist)."""
+    """Check if a 'once' step can be skipped.
+
+    For script steps: skip if all outputs exist.
+    For recipe steps with input_boundary: skip if all outputs exist AND are
+    newer than the input_boundary file (re-run on scope change).
+    """
     if step.get("run", "always") != "once":
         return False
     outputs = step.get("outputs", [])
@@ -86,7 +91,22 @@ def should_skip(step: dict, project_dir: Path) -> bool:
         outputs = [step["output"]]
     if not outputs:
         return False
-    return all((project_dir / out).exists() for out in outputs)
+
+    output_paths = [project_dir / out for out in outputs]
+    if not all(p.exists() for p in output_paths):
+        return False
+
+    # For recipe steps: check if input_boundary is newer than outputs
+    input_boundary = step.get("input_boundary")
+    if input_boundary and step.get("recipe"):
+        input_path = project_dir / input_boundary
+        if input_path.exists():
+            input_mtime = input_path.stat().st_mtime
+            oldest_output = min(p.stat().st_mtime for p in output_paths)
+            if input_mtime > oldest_output:
+                return False  # input changed — re-run
+
+    return True
 
 
 def run_step(step: dict, project_dir: Path, conda_env: str | None = None) -> bool:

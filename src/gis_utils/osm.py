@@ -8,7 +8,6 @@ features from OSM, with dissolve and morphological filtering support.
 from __future__ import annotations
 
 import hashlib
-import time
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +25,6 @@ from gis_utils.geometry import remove_inner_rings
 
 DEFAULT_OVERPASS_URL = "http://overpass-api.de/api/interpreter"
 CACHE_DIR_NAME = "download_cache"
-DEFAULT_CACHE_MAX_AGE_S = 86400  # 24 hours
 
 
 def _osm_cache_key(
@@ -57,7 +55,6 @@ def download_osm_polygons(
     timeout: int = 180,
     overpass_url: str = DEFAULT_OVERPASS_URL,
     cache_dir: Path | str | None = None,
-    cache_max_age_s: int = DEFAULT_CACHE_MAX_AGE_S,
     no_cache: bool = False,
 ) -> gpd.GeoDataFrame:
     """
@@ -73,7 +70,6 @@ def download_osm_polygons(
         timeout: Overpass API timeout in seconds.
         overpass_url: Overpass API endpoint.
         cache_dir: Directory for cached downloads. Default: download_cache/ in cwd.
-        cache_max_age_s: Max age of cached file in seconds before re-downloading (default: 24h).
         no_cache: If True, skip cache and always download fresh.
 
     Returns:
@@ -91,10 +87,8 @@ def download_osm_polygons(
     cache_file = _cache_dir / _osm_cache_key(bbox, tags, crs, dissolve)
 
     if not no_cache and cache_file.exists():
-        age_s = time.time() - cache_file.stat().st_mtime
-        if age_s < cache_max_age_s:
-            print(f"[osm] Using cached data: {cache_file.name} ({age_s/3600:.1f}h old)", flush=True)
-            return gpd.read_file(cache_file)
+        print(f"[osm] Using cached data: {cache_file.name}", flush=True)
+        return gpd.read_file(cache_file)
 
     minx, miny, maxx, maxy = bbox
     bbox_str = f"{miny},{minx},{maxy},{maxx}"
