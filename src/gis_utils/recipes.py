@@ -395,9 +395,19 @@ def _run_osm_recipe(
         raise ValueError("OSM recipe requires input_boundary or extent")
 
     tags = recipe.connection.get("tags")
+    if tags is None:
+        tags = {
+            "landuse": "^(residential|commercial|industrial|retail)$",
+            "place": "^(city|town|village|hamlet|suburb|neighbourhood)$",
+        }
     dissolve = recipe.detection.get("dissolve", True)
 
-    print(f"[osm] Running recipe '{recipe.name}'...", flush=True)
+    # Check cache before calling to determine verbosity
+    from gis_utils.osm import _osm_cache_key, CACHE_DIR_NAME as _OSM_CACHE_DIR
+    _osm_cache_dir = Path.cwd() / _OSM_CACHE_DIR
+    _osm_cache_file = _osm_cache_dir / _osm_cache_key(bbox_wgs84, tags, _crs, dissolve)
+    _cache_hit = _osm_cache_file.exists()
+
     gdf = download_osm_polygons(bbox_wgs84, tags=tags, crs=_crs, dissolve=dissolve, **kwargs)
 
     # Apply recipe post-processing pipeline
@@ -405,15 +415,10 @@ def _run_osm_recipe(
 
     if recipe.attribute_mappings:
         apply_attribute_mappings(gdf, recipe.attribute_mappings)
-
     if recipe.post_processing:
-        print("[osm] Applying post-processing steps...", flush=True)
         gdf = apply_post_processing(gdf, recipe.post_processing)
-
     if recipe.hooks:
-        print(f"[osm] Running post-process hook: {recipe.hooks}", flush=True)
         gdf = load_and_run_hook(recipe.hooks, "post_process", gdf, _proj_dir)
-
     if recipe.column_mapping:
         is_shp = output_path is not None and str(output_path).lower().endswith(".shp")
         gdf = apply_column_mapping(gdf, recipe.column_mapping, is_shapefile=is_shp)
@@ -431,8 +436,8 @@ def _run_osm_recipe(
             driver = "GeoJSON"
         else:
             driver = "GPKG"
-        print(f"[osm] Writing output ({driver})...", flush=True)
         gdf.to_file(output_path, driver=driver)
-        print(f"[osm] Written: {output_path}", flush=True)
+        if not _cache_hit:
+            print(f"[osm] Written: {output_path}", flush=True)
 
     return gdf

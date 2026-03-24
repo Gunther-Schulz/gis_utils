@@ -87,7 +87,6 @@ def download_osm_polygons(
     cache_file = _cache_dir / _osm_cache_key(bbox, tags, crs, dissolve)
 
     if not no_cache and cache_file.exists():
-        print(f"[osm] Using cached data: {cache_file.name}", flush=True)
         return gpd.read_file(cache_file)
 
     minx, miny, maxx, maxy = bbox

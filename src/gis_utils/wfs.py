@@ -89,13 +89,12 @@ def download(
     # --- Cache check ---
     _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
     cache_file = _cache_dir / _cache_key(layer, extent, crs)
-    gdf = None
+    _cache_hit = False
 
     if not no_cache and cache_file.exists():
-        print(f"[wfs] Using cached data: {cache_file.name}", flush=True)
         gdf = gpd.read_file(cache_file)
-
-    if gdf is None:
+        _cache_hit = True
+    else:
         print(f"[wfs] Downloading features from {layer}...", flush=True)
         if extent:
             print(f"[wfs] Extent ({crs}): {extent}", flush=True)
@@ -127,10 +126,8 @@ def download(
 
         print(f"[wfs] Downloaded {len(gdf)} features", flush=True)
 
-        # Write to cache
         _cache_dir.mkdir(parents=True, exist_ok=True)
         gdf.to_file(cache_file, driver="GPKG")
-        print(f"[wfs] Cached: {cache_file.name}", flush=True)
 
     # --- Recipe post-processing pipeline ---
     if _recipe is not None:
@@ -143,20 +140,13 @@ def download(
         _proj_dir = Path(recipe_dir) if recipe_dir else None
 
         if _recipe.attribute_mappings:
-            print("[wfs] Applying attribute mappings...", flush=True)
             apply_attribute_mappings(gdf, _recipe.attribute_mappings)
-
         if _recipe.post_processing:
-            print("[wfs] Applying post-processing steps...", flush=True)
             gdf = apply_post_processing(gdf, _recipe.post_processing)
-
         if _recipe.hooks:
-            print(f"[wfs] Running post-process hook: {_recipe.hooks}", flush=True)
             gdf = load_and_run_hook(_recipe.hooks, "post_process", gdf, _proj_dir)
-
         if _recipe.column_mapping:
             is_shp = output_path is not None and str(output_path).lower().endswith(".shp")
-            print("[wfs] Applying column mapping...", flush=True)
             gdf = apply_column_mapping(gdf, _recipe.column_mapping, is_shapefile=is_shp)
 
     # --- Write output ---
@@ -172,8 +162,10 @@ def download(
             driver = "GeoJSON"
         else:
             driver = "GPKG"
-        print(f"[wfs] Writing output ({driver})...", flush=True)
+        if not _cache_hit:
+            print(f"[wfs] Writing output ({driver})...", flush=True)
         gdf.to_file(output_path, driver=driver)
-        print(f"[wfs] Written: {output_path}", flush=True)
+        if not _cache_hit:
+            print(f"[wfs] Written: {output_path}", flush=True)
 
     return gdf
