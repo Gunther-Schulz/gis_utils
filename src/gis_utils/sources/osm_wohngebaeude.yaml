@@ -1,0 +1,11 @@
+name: osm_wohngebaeude
+description: "Wohngebäude-Footprints aus OpenStreetMap (einzelne Gebäude, nicht aufgelöst)"
+tags: [wohngebäude, gebäude, building, wohnbebauung, OSM, openstreetmap]
+
+connection:
+  type: osm
+  tags:
+    building: "^(yes|residential|house|detached|semidetached_house|apartments|farm|farmhouse)$"
+
+detection:
+  dissolve: false
