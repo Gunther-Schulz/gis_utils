@@ -2,8 +2,9 @@
 Simple YAML-based workflow runner for GIS projects.
 
 Reads a workflow.yaml from a project directory, resolves step dependencies,
-and executes scripts in the correct order. Steps can be marked as "always"
-(run every time) or "once" (skip if all declared outputs already exist).
+and executes scripts in the correct order. Steps can be marked as "auto"
+(skip if outputs exist and are up-to-date) or "always" (run every time).
+Default is "auto".
 
 Usage:
     # From project directory:
@@ -77,13 +78,12 @@ def resolve_order(steps: list[dict]) -> list[dict]:
 
 
 def should_skip(step: dict, project_dir: Path) -> bool:
-    """Check if a 'once' step can be skipped.
+    """Check if an 'auto' step can be skipped.
 
-    For script steps: skip if all outputs exist.
-    For recipe steps with input_boundary: skip if all outputs exist AND are
-    newer than the input_boundary file (re-run on scope change).
+    Skip if all outputs exist. For recipe steps with input_boundary,
+    also check that outputs are newer than the input (re-run on scope change).
     """
-    if step.get("run", "always") != "once":
+    if step.get("run", "auto") != "auto":
         return False
     outputs = step.get("outputs", [])
     # Recipe steps use singular 'output'
@@ -245,7 +245,7 @@ def run_workflow(
     all_ok = True
     for i, step in enumerate(ordered, 1):
         name = step["name"]
-        mode = step.get("run", "always")
+        mode = step.get("run", "auto")
         skip = should_skip(step, project_dir)
 
         status = "SKIP (outputs exist)" if skip else mode
@@ -305,7 +305,7 @@ project:
 steps:
   - name: Example step
     script: scripts/example.py
-    run: always
+    run: auto
     # outputs:
     #   - output/result.shp
     # depends_on:
