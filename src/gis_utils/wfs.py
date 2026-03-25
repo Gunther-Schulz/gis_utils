@@ -8,11 +8,109 @@ from __future__ import annotations
 
 import hashlib
 import re
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import geopandas as gpd
 
 CACHE_DIR_NAME = "download_cache"
+
+
+def _build_ogc_filter(conditions: dict[str, str]) -> str:
+    """Build an OGC Filter XML string from key-value equality conditions.
+
+    Args:
+        conditions: Dict of {field_name: value} for equality matching.
+                   Values starting with ~ are treated as LIKE patterns.
+
+    Returns:
+        OGC Filter XML string.
+    """
+    if not conditions:
+        return ""
+
+    parts = []
+    for field, value in conditions.items():
+        value_str = str(value)
+        if value_str.startswith("~"):
+            parts.append(
+                f"<ogc:PropertyIsLike wildCard='%' singleChar='_' escapeChar='\\'>"
+                f"<ogc:PropertyName>{field}</ogc:PropertyName>"
+                f"<ogc:Literal>{value_str[1:]}</ogc:Literal>"
+                f"</ogc:PropertyIsLike>"
+            )
+        else:
+            parts.append(
+                f"<ogc:PropertyIsEqualTo>"
+                f"<ogc:PropertyName>{field}</ogc:PropertyName>"
+                f"<ogc:Literal>{value_str}</ogc:Literal>"
+                f"</ogc:PropertyIsEqualTo>"
+            )
+
+    if len(parts) == 1:
+        body = parts[0]
+    else:
+        body = "<ogc:And>" + "".join(parts) + "</ogc:And>"
+
+    return (
+        '<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc">'
+        + body
+        + "</ogc:Filter>"
+    )
+
+
+def _wfs_get_feature_url(
+    url: str,
+    layer: str,
+    *,
+    version: str = "2.0.0",
+    ogc_filter: str = "",
+    bbox: tuple | None = None,
+    crs: str = "",
+    max_features: int | None = None,
+) -> str:
+    """Build a WFS GetFeature URL with OGC filter parameters."""
+    params = {
+        "SERVICE": "WFS",
+        "REQUEST": "GetFeature",
+        "VERSION": version,
+        "TYPENAMES" if version >= "2.0.0" else "TYPENAME": layer,
+        "OUTPUTFORMAT": "application/gml+xml; version=3.2",
+    }
+    if crs:
+        params["SRSNAME"] = crs
+    if max_features:
+        key = "COUNT" if version >= "2.0.0" else "MAXFEATURES"
+        params[key] = str(max_features)
+    if ogc_filter:
+        params["FILTER"] = ogc_filter
+    elif bbox:
+        minx, miny, maxx, maxy = bbox
+        params["BBOX"] = f"{miny},{minx},{maxy},{maxx},{crs}" if crs else f"{miny},{minx},{maxy},{maxx}"
+
+    base = url.split("?")[0]
+    return f"{base}?{urllib.parse.urlencode(params, quote_via=urllib.parse.quote)}"
+
+
+def _wfs_stored_query_url(
+    url: str,
+    stored_query_id: str,
+    params: dict[str, str],
+    *,
+    version: str = "2.0.0",
+) -> str:
+    """Build a WFS GetFeature URL using a stored query."""
+    base_params = {
+        "SERVICE": "WFS",
+        "REQUEST": "GetFeature",
+        "VERSION": version,
+        "STOREDQUERY_ID": stored_query_id,
+    }
+    base_params.update(params)
+    base = url.split("?")[0]
+    return f"{base}?{urllib.parse.urlencode(base_params, quote_via=urllib.parse.quote)}"
 
 
 def _cache_key(layer: str, extent: tuple | None, crs: str, filter_hash: str = "") -> str:
@@ -43,6 +141,9 @@ def download(
     no_cache: bool = False,
     recipe: "str | Recipe | None" = None,
     recipe_dir: Path | str | None = None,
+    filter: dict[str, str] | None = None,
+    stored_query: str | None = None,
+    stored_query_params: dict[str, str] | None = None,
 ) -> gpd.GeoDataFrame:
     """Download vector features from a WFS service.
 
@@ -59,6 +160,11 @@ def download(
         no_cache: If True, skip cache and always download fresh.
         recipe: Recipe name or Recipe object for attribute mappings and post-processing.
         recipe_dir: Project directory for recipe search.
+        filter: Dict of {field_name: value} for attribute filtering.
+                Keys are resolved through recipe query_fields if available.
+                Used as client-side filter after download.
+        stored_query: WFS stored query ID for server-side filtering.
+        stored_query_params: Parameters for the stored query.
 
     Returns:
         GeoDataFrame with downloaded features.
@@ -85,10 +191,42 @@ def download(
         boundary_gdf = boundary_gdf.to_crs(crs)
         extent = tuple(boundary_gdf.total_bounds)
 
-    # Build filter hash for cache key (includes exclude_tags so cache invalidates on filter change)
-    filter_hash = ""
+    # Check if recipe connection specifies a bbox_stored_query
+    # (some WFS services require stored queries instead of standard bbox)
+    if extent and not stored_query and _recipe:
+        bbox_sq = _recipe.connection.get("bbox_stored_query")
+        if bbox_sq:
+            stored_query = bbox_sq["id"]
+            stored_query_params = {
+                "x1": str(extent[0]),
+                "y1": str(extent[1]),
+                "x2": str(extent[2]),
+                "y2": str(extent[3]),
+                "CRS": crs,
+            }
+            extent = None  # handled by stored query now
+
+    # --- Resolve attribute filter for client-side post-filtering ---
+    _client_filter = {}
+    if filter:
+        query_fields = {}
+        if _recipe and _recipe.detection.get("query_fields"):
+            query_fields = _recipe.detection["query_fields"]
+        for key, value in filter.items():
+            wfs_field = query_fields.get(key, key)
+            _client_filter[wfs_field] = value
+
+    # Build filter hash for cache key
+    hash_parts = []
     if _recipe and _recipe.exclude_tags:
-        filter_hash = hashlib.md5(str(sorted(_recipe.exclude_tags.items())).encode()).hexdigest()[:6]
+        hash_parts.append(str(sorted(_recipe.exclude_tags.items())))
+    if stored_query:
+        hash_parts.append(stored_query)
+    if stored_query_params:
+        hash_parts.append(str(sorted(stored_query_params.items())))
+    if _client_filter:
+        hash_parts.append(str(sorted(_client_filter.items())))
+    filter_hash = hashlib.md5("".join(hash_parts).encode()).hexdigest()[:6] if hash_parts else ""
 
     # --- Cache check ---
     _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
@@ -100,21 +238,39 @@ def download(
         _cache_hit = True
     else:
         print(f"[wfs] Downloading {layer}...", flush=True)
+        if stored_query:
+            print(f"[wfs] Stored query: {stored_query}", flush=True)
+            if stored_query_params:
+                print(f"[wfs] Params: {stored_query_params}", flush=True)
+        if _client_filter:
+            print(f"[wfs] Client filter: {_client_filter}", flush=True)
         if extent:
             print(f"[wfs] Extent ({crs}): {extent[0]:.0f},{extent[1]:.0f} — {extent[2]:.0f},{extent[3]:.0f}", flush=True)
 
-        # Use geopandas OGR WFS driver — handles complex GML (NAS, INSPIRE) reliably
-        wfs_uri = f"WFS:{url}"
-        read_kwargs = {"layer": layer}
-        if extent:
-            read_kwargs["bbox"] = extent
-        if max_features:
-            read_kwargs["max_features"] = max_features
-
         import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Field with same name")
-            gdf = gpd.read_file(wfs_uri, **read_kwargs)
+
+        if stored_query:
+            # Use WFS stored query — server-side filtering
+            sq_url = _wfs_stored_query_url(
+                url, stored_query,
+                stored_query_params or {},
+                version=version,
+            )
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Field with same name")
+                gdf = gpd.read_file(sq_url)
+        else:
+            # Use geopandas OGR WFS driver
+            wfs_uri = f"WFS:{url}"
+            read_kwargs = {"layer": layer}
+            if extent:
+                read_kwargs["bbox"] = extent
+            if max_features:
+                read_kwargs["max_features"] = max_features
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Field with same name")
+                gdf = gpd.read_file(wfs_uri, **read_kwargs)
 
         if gdf.crs is None:
             gdf = gdf.set_crs(crs)
@@ -122,6 +278,20 @@ def download(
             gdf = gdf.to_crs(crs)
 
         print(f"[wfs] Downloaded {len(gdf)} features", flush=True)
+
+        # Apply client-side attribute filter
+        if _client_filter and len(gdf) > 0:
+            mask = None
+            for col, value in _client_filter.items():
+                if col not in gdf.columns:
+                    continue
+                col_match = gdf[col].astype(str).str.strip() == str(value)
+                mask = col_match if mask is None else (mask & col_match)
+            if mask is not None:
+                n_before = len(gdf)
+                gdf = gdf[mask].copy()
+                if len(gdf) < n_before:
+                    print(f"[wfs] Filtered {n_before} → {len(gdf)} features", flush=True)
 
         # Apply exclude_tags filter before caching
         if _recipe and _recipe.exclude_tags and len(gdf) > 0:

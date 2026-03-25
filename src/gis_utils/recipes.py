@@ -55,12 +55,16 @@ class Recipe:
         layer_cfg = self.layers[alias]
         conn = dict(self.connection)
         conn["layer"] = layer_cfg.get("wfs_layer", alias)
+        # Merge query_fields into detection so wfs.download can find them
+        det = dict(layer_cfg.get("detection", self.detection))
+        if layer_cfg.get("query_fields"):
+            det["query_fields"] = layer_cfg["query_fields"]
         return Recipe(
             name=f"{self.name}:{alias}",
             description=layer_cfg.get("title", alias),
             tags=layer_cfg.get("tags", []),
             connection=conn,
-            detection=layer_cfg.get("detection", self.detection),
+            detection=det,
             attribute_mappings=layer_cfg.get("attribute_mappings", {}),
             column_mapping=layer_cfg.get("column_mapping", {}),
             post_processing=layer_cfg.get("post_processing", self.post_processing),

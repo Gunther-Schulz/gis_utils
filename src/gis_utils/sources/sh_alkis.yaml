@@ -1,0 +1,83 @@
+name: sh_alkis
+description: "ALKIS SH (vereinfacht OpenGBD) — Flurstücke, Katasterbezirke, Verwaltungseinheiten, Gebäude, Nutzungen für Schleswig-Holstein. Flache Attribute, ideal für Flurstück-Suche."
+tags: [ALKIS, kataster, amtlich, SH, schleswig-holstein, flurstück, gemarkung, gemeinde, gebäude, nutzung]
+
+connection:
+  type: wfs
+  url: "https://service.gdi-sh.de/WFS_SH_ALKIS_vereinf_OpenGBD"
+  version: "2.0.0"
+  # This WFS requires stored queries — standard OGR WFS bbox doesn't work
+  bbox_stored_query:
+    id: "http://repository.gdi-de.org/query/adv/produkt/alkis-vereinfacht/2.0/ave-by-bbox"
+    params: {x1: minx, y1: miny, x2: maxx, y2: maxy, CRS: crs}
+
+layers:
+  flurstuecke:
+    wfs_layer: "ave:Flurstueck"
+    title: "Flurstücke"
+    tags: [flurstück, parcel, grundstück]
+    query_fields:
+      gemarkung: gemarkung
+      gemarkung_schluessel: gemaschl
+      gemeinde: gemeinde
+      gemeinde_schluessel: gmdschl
+      flur: flur
+      flur_schluessel: flurschl
+      zaehler: flstnrzae
+      nenner: flstnrnen
+      kennzeichen: flstkennz
+      kreis: kreis
+      kreis_schluessel: kreisschl
+    stored_queries:
+      by_gemarkung:
+        id: "GetFlstByGemarkung"
+        param_field: gemarkungsnummer
+        source_field: gemaschl
+      by_gemeinde:
+        id: "GetFlstByGemeinde"
+        param_field: gemeindeschluessel
+        source_field: gmdschl
+      by_kennzeichen:
+        id: "GetFeatureByKennz"
+        param_field: flstkennz
+        source_field: flstkennz
+    column_mapping:
+      flstkennz: kennzeichen
+      flaeche: flaeche_m2
+      lagebeztxt: lagebezeichnung
+
+  katasterbezirk:
+    wfs_layer: "ave:KatasterBezirk"
+    title: "Katasterbezirke (Gemarkungen und Flure)"
+    tags: [gemarkung, flur, katasterbezirk]
+    query_fields:
+      name: name
+      art: art
+      gemeinde: gemeinde
+      gemeinde_schluessel: gmdschl
+      schluessel: schluessel
+
+  verwaltungseinheit:
+    wfs_layer: "ave:VerwaltungsEinheit"
+    title: "Verwaltungseinheiten (Gemeinden, Kreise, etc.)"
+    tags: [gemeinde, kreis, verwaltung]
+    query_fields:
+      name: name
+      art: art
+      rs: rs
+      ags: ags
+
+  gebaeude:
+    wfs_layer: "ave:GebaeudeBauwerk"
+    title: "Gebäude und Bauwerke"
+    tags: [gebäude, building, bauwerk]
+
+  nutzung:
+    wfs_layer: "ave:Nutzung"
+    title: "Tatsächliche Nutzung"
+    tags: [nutzung, landuse, bodennutzung]
+
+  nutzung_flurstueck:
+    wfs_layer: "ave:NutzungFlurstueck"
+    title: "Nutzungen je Flurstück"
+    tags: [nutzung, flurstück]

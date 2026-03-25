@@ -1,0 +1,68 @@
+name: mv_alkis_vereinf
+description: "ALKIS MV vereinfacht — Flurstücke, Katasterbezirke, Verwaltungseinheiten, Gebäude, Nutzungen. Flache Attribute, ideal für Flurstück-Suche."
+tags: [ALKIS, kataster, amtlich, MV, mecklenburg-vorpommern, flurstück, gemarkung, gemeinde, gebäude, nutzung, vereinfacht]
+
+connection:
+  type: wfs
+  url: "https://www.geodaten-mv.de/dienste/alkis_wfs_einfach"
+  version: "2.0.0"
+  crs: "EPSG:25833"
+  bbox_stored_query:
+    id: "http://repository.gdi-de.org/query/adv/produkt/alkis-vereinfacht/2.0/ave-by-bbox"
+    params: {x1: minx, y1: miny, x2: maxx, y2: maxy, CRS: crs}
+
+layers:
+  flurstuecke:
+    wfs_layer: "ave:Flurstueck"
+    title: "Flurstücke"
+    tags: [flurstück, parcel, grundstück]
+    query_fields:
+      gemarkung: gemarkung
+      gemarkung_schluessel: gemaschl
+      gemeinde: gemeinde
+      gemeinde_schluessel: gmdschl
+      flur: flur
+      flur_schluessel: flurschl
+      zaehler: flstnrzae
+      nenner: flstnrnen
+      kennzeichen: flstkennz
+      kreis: kreis
+      kreis_schluessel: kreisschl
+    stored_queries:
+      by_gemarkung:
+        id: "http://repository.gdi-de.org/query/adv/produkt/alkis-vereinfacht/2.0/flst-by-gemarkung"
+        param_field: kennzeichen
+        source_field: gemaschl
+      by_kennzeichen:
+        id: "http://repository.gdi-de.org/query/adv/produkt/alkis-vereinfacht/2.0/flst-by-kennzeichen"
+        param_field: kennzeichen
+        source_field: flstkennz
+    column_mapping:
+      flstkennz: kennzeichen
+      flaeche: flaeche_m2
+      lagebeztxt: lagebezeichnung
+
+  katasterbezirk:
+    wfs_layer: "ave:KatasterBezirk"
+    title: "Katasterbezirke (Gemarkungen und Flure)"
+    tags: [gemarkung, flur, katasterbezirk]
+
+  verwaltungseinheit:
+    wfs_layer: "ave:VerwaltungsEinheit"
+    title: "Verwaltungseinheiten (Gemeinden, Kreise, etc.)"
+    tags: [gemeinde, kreis, verwaltung]
+
+  gebaeude:
+    wfs_layer: "ave:GebaeudeBauwerk"
+    title: "Gebäude und Bauwerke"
+    tags: [gebäude, building, bauwerk]
+
+  nutzung:
+    wfs_layer: "ave:Nutzung"
+    title: "Tatsächliche Nutzung"
+    tags: [nutzung, landuse, bodennutzung]
+
+  nutzung_flurstueck:
+    wfs_layer: "ave:NutzungFlurstueck"
+    title: "Nutzungen je Flurstück"
+    tags: [nutzung, flurstück]

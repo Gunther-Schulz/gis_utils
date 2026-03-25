@@ -1,0 +1,7 @@
+sh:
+  recipe: sh_alkis
+  layer: flurstuecke
+
+mv:
+  recipe: mv_alkis_vereinf
+  layer: flurstuecke

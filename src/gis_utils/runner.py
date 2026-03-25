@@ -192,12 +192,16 @@ def _run_recipe_step(step: dict, project_dir: Path) -> bool:
     """Execute a recipe-based workflow step (single or multi-layer)."""
     recipe_name = step["recipe"]
     layer_aliases = step.get("layers")
+    attr_filter = step.get("filter")
 
     try:
         extent_kwargs = _resolve_extent(step, project_dir)
     except (FileNotFoundError, ValueError) as e:
         print(f"  [ERROR] {e}")
         return False
+
+    if attr_filter:
+        extent_kwargs["filter"] = attr_filter
 
     # Multi-layer recipe
     if layer_aliases:

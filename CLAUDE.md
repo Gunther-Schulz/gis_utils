@@ -63,6 +63,11 @@ All common functions importable from top level: `from gis_utils import ...`
 - `from gis_utils.osm import download_osm_polygons` — download polygon features from OpenStreetMap Overpass API
 - `from gis_utils.osm import bbox_from_shapefile` — get WGS84 bounding box from a shapefile
 
+### ALKIS Flurstück Lookup
+- `find_flurstuecke(state, *, gemarkung, flur, nummern, ...)` — find Flurstücke by Gemarkung/Flur/Nummer. State: 'sh' or 'mv'. Parses "78/2" automatically. Uses WFS stored queries + client-side filtering.
+- Requires either `gemarkung_schluessel` (for server-side stored query) or `extent`/`input_boundary` (for spatial download + client-side filter)
+- Profiles in `alkis_profiles.yaml` map state codes to recipes
+
 ### Recipes (Source Profiles)
 - `load_recipe(name, project_dir=None)` — load a source recipe by name (searches project `sources/` then library defaults)
 - `list_recipes(project_dir=None, search=None)` — find available recipes by name/description/tags (also searches within multi-layer titles/tags)
@@ -72,10 +77,13 @@ All common functions importable from top level: `from gis_utils import ...`
 - Shipped single-layer recipes: `mv_bodenschaetzung` (Bodenschätzwerte WMS), `osm_siedlungsflaechen`, `osm_wohngebaeude`
 - Shipped multi-layer recipes:
   - `sh_uwat` (SH Umwelt-Atlas: 27 layers — Boden, Erosion, Geologie, Wasser, Landwirtschaft)
-  - `sh_kataster` (SH INSPIRE Kataster: Flurstücke + Gemarkungen)
+  - `sh_alkis` (SH ALKIS vereinfacht: Flurstücke, Katasterbezirke, Verwaltungseinheiten, Gebäude, Nutzung — with query_fields + stored_queries for Flurstück lookup)
   - `mv_bodengeologie` (MV Bodengeologie: 7 layers — Moore, Feldkapazität, Nitrat, etc.)
-  - `mv_alkis` (MV ALKIS: 20 layers — Gebäude, Flurstücke, Nutzungen, Verwaltung, Schutzgebiete)
+  - `mv_alkis` (MV ALKIS detailed: 20 layers — Gebäude, Flurstücke, Nutzungen, Verwaltung, Schutzgebiete)
+  - `mv_alkis_vereinf` (MV ALKIS vereinfacht: same AdV standard as SH — for Flurstück lookup)
 - Multi-layer recipes define `layers:` dict with per-layer config (wfs_layer, title, tags, column_mapping, attribute_mappings). In workflow.yaml: `layers: [alias1, alias2]` + `output_dir:` instead of `output:`
+- Recipes can define `query_fields` (friendly→WFS field name mapping) and `stored_queries` for server-side filtering
+- WFS download supports `filter` for client-side attribute filtering and `stored_query`/`stored_query_params` for server-side queries
 - CLI: `gis-workflow check-recipes [recipe_name]` — compares hardcoded layers vs live endpoint
 - Recipe YAMLs define: connection (URL, layer, CRS), detection mode, attribute value mappings, column renaming, post-processing steps, optional Python hooks
 - When a user wants a WMS/WFS source that has no recipe yet:
