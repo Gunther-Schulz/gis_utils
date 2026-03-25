@@ -28,6 +28,7 @@ from gis_utils.geometry import (
     make_valid_gdf,
     morphological_filter,
     points_with_buffers,
+    repair_geometry,
     remove_inner_rings,
     subtract_geometries,
     subtract_smaller_overlaps,
@@ -77,6 +78,7 @@ __all__ = [
     "load_and_union",
     "find_column",
     "morphological_filter",
+    "repair_geometry",
     "distance_to_nearest",
     "points_with_buffers",
     # Reporting

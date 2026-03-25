@@ -47,6 +47,7 @@ All common functions importable from top level: `from gis_utils import ...`
 - `get_table_handle_by_name(doc, table_name)` — find OD table handle by name
 
 ### Geometry Utilities
+- `repair_geometry(geom, *, context)` — validate and repair a single geometry. Handles self-intersections, GeometryCollection results from make_valid(), extracts Polygon(s) from compound results. Prints warnings when repair is needed. **Used automatically in all DXF extraction — but call explicitly when building geometries from coordinates or dissolving.**
 - `remove_inner_rings(geom)` — remove holes from Polygon/MultiPolygon
 - `make_valid_gdf(gdf)` — repair all invalid geometries in a GeoDataFrame (returns copy)
 - `subtract_geometries(base_gdf, subtract_gdf)` — set difference: base minus union of subtract

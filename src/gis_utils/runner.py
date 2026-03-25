@@ -388,7 +388,7 @@ ALWAYS use it instead of writing equivalent code from scratch.
 - **DXF extraction:** use `extract_dxf_layers()` / `extract_dxf_circles()` — handles bulge/arc interpolation, block recursion, all entity types. NEVER iterate DXF entities manually.
 - **DXF creation:** use `new_dxf_document()` and `ensure_layer()` for CAD-compatible headers.
 - **DXF conversion:** use `shapefile_to_dxf()` for SHP→DXF with optional Map OD and labels.
-- **Geometry repair:** use `make_valid_gdf()`, not inline shapely calls.
+- **Geometry repair:** use `repair_geometry(geom)` for single geometries (handles GeometryCollection edge cases), `make_valid_gdf(gdf)` for GeoDataFrames. NEVER use shapely `make_valid()` directly — it can return GeometryCollection which silently breaks downstream operations.
 - **Removing holes:** use `remove_inner_rings()`.
 - **Set difference:** use `subtract_geometries()`.
 - **Overlap removal:** use `subtract_smaller_overlaps()`.

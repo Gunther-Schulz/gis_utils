@@ -24,7 +24,6 @@ from ezdxf.math import bulge_center, bulge_radius
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
-from shapely.validation import make_valid
 
 
 # ---------------------------------------------------------------------------
@@ -437,7 +436,10 @@ def extract_3dsolids(
                 world_pts = [(p[0] + dx, p[1] + dy, p[2]) for p in world_pts]
 
             poly = _solid3d_to_2d_polygon_from_points(world_pts, bottom_face=bottom_face)
-            if poly is not None and poly.is_valid:
+            if poly is not None:
+                from gis_utils.geometry import repair_geometry
+                poly = repair_geometry(poly, context=f"3DSOLID on {layer}")
+            if poly is not None:
                 feature = {"geometry": poly}
                 zs = [p[2] for p in world_pts]
                 feature["z_min"] = min(zs)
@@ -700,22 +702,19 @@ def _build_feature(
     extra: dict[str, Any],
 ) -> dict[str, Any] | None:
     """Build a feature dict with Shapely geometry from coords and type."""
+    from gis_utils.geometry import repair_geometry
+
     try:
         if geom_type == "Point" and len(coords) == 1:
             geom = Point(coords[0])
         elif geom_type in ("Polygon", "Hatch") and len(coords) >= 3:
             geom = Polygon(coords)
-            if not geom.is_valid:
-                geom = make_valid(geom)
-                if geom.is_empty:
-                    return None
-                # make_valid can produce MultiPolygon or GeometryCollection;
-                # extract the largest polygon from any compound result
-                if geom.geom_type in ("MultiPolygon", "GeometryCollection"):
-                    polys = [g for g in geom.geoms if g.geom_type == "Polygon" and g.area > 0]
-                    if not polys:
-                        return None
-                    geom = max(polys, key=lambda g: g.area)
+            geom = repair_geometry(geom, context=entity_type)
+            if geom is None:
+                return None
+            # If repair produced MultiPolygon, take the largest
+            if geom.geom_type == "MultiPolygon":
+                geom = max(geom.geoms, key=lambda g: g.area)
         elif geom_type == "LineString" and len(coords) >= 2:
             geom = LineString(coords)
         else:

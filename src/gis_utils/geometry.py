@@ -41,6 +41,51 @@ def remove_inner_rings(geom) -> Any:
     return geom
 
 
+def repair_geometry(geom, *, context: str = "") -> Any:
+    """Validate and repair a single geometry, extracting polygons from compound results.
+
+    Handles all known edge cases from DXF conversion:
+    - Self-intersecting polygons (from opposing arc directions in hatches)
+    - make_valid() returning GeometryCollection (Polygon + LineString artifacts)
+    - make_valid() returning MultiPolygon from self-intersections
+    - Empty geometries
+
+    Prints a warning when repair is needed so issues are caught early.
+
+    Args:
+        geom: A Shapely geometry.
+        context: Optional string for the warning message (e.g. layer/entity info).
+
+    Returns:
+        Repaired geometry (Polygon preferred), or None if unrecoverable.
+    """
+    if geom is None or geom.is_empty:
+        return None
+
+    if geom.is_valid:
+        return geom
+
+    ctx = f" ({context})" if context else ""
+    print(f"[geometry] Warning: invalid geometry{ctx}, repairing...", flush=True)
+
+    repaired = _shapely_make_valid(geom)
+    if repaired.is_empty:
+        print(f"[geometry] Warning: repair produced empty geometry{ctx}", flush=True)
+        return None
+
+    # Extract polygon(s) from compound results
+    if repaired.geom_type in ("MultiPolygon", "GeometryCollection"):
+        polys = [g for g in repaired.geoms if g.geom_type == "Polygon" and g.area > 0]
+        if not polys:
+            return repaired  # no polygons, return as-is (might be lines/points)
+        if len(polys) == 1:
+            return polys[0]
+        # Multiple polygons: return as MultiPolygon
+        return MultiPolygon(polys)
+
+    return repaired
+
+
 def make_valid_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Attempt to fix all invalid geometries in a GeoDataFrame.
