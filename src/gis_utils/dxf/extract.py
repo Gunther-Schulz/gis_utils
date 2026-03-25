@@ -198,38 +198,30 @@ def _ellipse_to_coords(entity, num_segments: int = 64) -> list[tuple[float, floa
     return pts
 
 
-def _hatch_to_coords(entity) -> list[tuple[float, float]] | None:
-    """Extract first boundary path from a HATCH entity as coordinates."""
-    for path in entity.paths:
-        vertices: list[tuple[float, float]] = []
-        if hasattr(path, "vertices"):
-            vertices = [_p2(v) for v in path.vertices]
-        elif hasattr(path, "edges"):
-            for edge in path.edges:
-                edge_type = type(edge).__name__
-                if edge_type == "LineEdge":
-                    vertices.append(_p2(edge.start))
-                elif edge_type == "ArcEdge":
-                    # Approximate arc edge
-                    cx, cy = edge.center
-                    r = edge.radius
-                    sa = math.radians(edge.start_angle)
-                    ea = math.radians(edge.end_angle)
-                    if edge.ccw:
-                        if ea <= sa:
-                            ea += 2 * math.pi
-                    else:
-                        if ea >= sa:
-                            ea -= 2 * math.pi
-                    n = max(8, int(abs(ea - sa) * 16 / math.pi))
-                    for k in range(n + 1):
-                        a = sa + (ea - sa) * k / n
-                        vertices.append((cx + r * math.cos(a), cy + r * math.sin(a)))
-            if vertices and hasattr(path.edges[-1], "end"):
-                vertices.append(_p2(path.edges[-1].end))
-        if len(vertices) >= 3:
-            return vertices
-    return None
+def _hatch_to_coords(entity, tolerance: float = 0.1) -> list[tuple[float, float]] | None:
+    """Extract first boundary path from a HATCH entity as coordinates.
+
+    Uses ezdxf's path system which correctly handles all edge types
+    (LineEdge, ArcEdge, EllipseEdge, SplineEdge) with proper arc
+    direction and sweep calculations.
+    """
+    from ezdxf import path as ezdxf_path
+
+    try:
+        paths = list(ezdxf_path.from_hatch(entity))
+    except Exception:
+        paths = []
+
+    if not paths:
+        # Fallback: try direct vertex extraction
+        for bpath in entity.paths:
+            if hasattr(bpath, "vertices") and len(bpath.vertices) >= 3:
+                return [_p2(v) for v in bpath.vertices]
+        return None
+
+    # Use the first (outermost) path
+    pts = [(v.x, v.y) for v in paths[0].flattening(tolerance)]
+    return pts if len(pts) >= 3 else None
 
 
 # ---------------------------------------------------------------------------
