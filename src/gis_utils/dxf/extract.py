@@ -310,7 +310,7 @@ def solid3d_to_circle(
     entity,
     diameter: float,
     *,
-    vertex_index: int | str = "midpoint",
+    vertex_index: int | str = -1,
     resolution: int = 64,
 ) -> tuple[Point, Polygon]:
     """Convert a cylindrical 3DSOLID to a 2D center point and circle polygon.
@@ -322,8 +322,11 @@ def solid3d_to_circle(
         entity: ezdxf 3DSOLID entity.
         diameter: Circle diameter in map units (meters).
         vertex_index: Which ACIS vertex to use as center.
-                      "midpoint" (default) = XY midpoint of all vertices.
-                      int = specific vertex index (0, 1, -1, etc.).
+                      "midpoint" = XY midpoint of all vertices.
+                      int (default -1) = specific vertex index. Prefer this
+                      when the drawing has a visible center cross — ACIS
+                      vertices may not be symmetrically placed around the
+                      geometric center, so midpoint can be off.
         resolution: Number of segments for the circle polygon.
 
     Returns:
