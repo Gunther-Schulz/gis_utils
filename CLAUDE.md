@@ -30,6 +30,10 @@ All common functions importable from top level: `from gis_utils import ...`
 - `interpolate_bulge_arc(start, end, bulge, num_points)` — arc points between two DXF vertices
 - `save_layers_as_shapefiles(layers, output_dir)` — write extract_dxf_layers() output to organized shapefiles
 
+### DXF 3DSOLID Extraction
+- `extract_3dsolids(dxf_path, crs, *, layers, bottom_face)` — extract 3DSOLID entities as georeferenced 2D polygon GeoDataFrames (convex hull of ACIS vertices). Auto-applies GEODATA offset if needed.
+- `solid3d_to_circle(entity, diameter, *, vertex_index, resolution)` — convert cylindrical 3DSOLID to (center Point, circle Polygon). `vertex_index=-1` (default) or `"midpoint"`. Diameter must be provided (not derivable from ACIS data).
+
 ### DXF Document Creation
 - `new_dxf_document(version)` — new ezdxf Drawing with proper CAD headers, styles, linetypes
 - `ensure_layer(doc, name, color, linetype)` — create layer if missing
