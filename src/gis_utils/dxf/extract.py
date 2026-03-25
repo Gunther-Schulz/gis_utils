@@ -709,9 +709,13 @@ def _build_feature(
                 geom = make_valid(geom)
                 if geom.is_empty:
                     return None
-                # If make_valid produced a MultiPolygon, take the largest part
-                if geom.geom_type == "MultiPolygon":
-                    geom = max(geom.geoms, key=lambda g: g.area)
+                # make_valid can produce MultiPolygon or GeometryCollection;
+                # extract the largest polygon from any compound result
+                if geom.geom_type in ("MultiPolygon", "GeometryCollection"):
+                    polys = [g for g in geom.geoms if g.geom_type == "Polygon" and g.area > 0]
+                    if not polys:
+                        return None
+                    geom = max(polys, key=lambda g: g.area)
         elif geom_type == "LineString" and len(coords) >= 2:
             geom = LineString(coords)
         else:
