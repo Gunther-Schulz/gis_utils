@@ -564,6 +564,15 @@ def _extract_entity(
                 return coords, "Hatch", extra
             return None, "", extra
 
+        if entity_type == "SOLID":
+            # DXF SOLID (2D filled quad/triangle) — vertex order is 0,1,3,2
+            v0 = _p2(entity.dxf.vtx0)
+            v1 = _p2(entity.dxf.vtx1)
+            v2 = _p2(entity.dxf.vtx2)
+            v3 = _p2(entity.dxf.vtx3) if entity.dxf.hasattr("vtx3") else v2
+            coords = [v0, v1, v3, v2, v0]
+            return coords, "Polygon", extra
+
         if entity_type == "POINT":
             return [_p2(entity.dxf.location)], "Point", extra
 
