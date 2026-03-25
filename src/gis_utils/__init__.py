@@ -4,11 +4,15 @@ from gis_utils.md_table import markdown_table
 from gis_utils.dxf.convert import shapefile_to_dxf
 from gis_utils.dxf.document import new_dxf_document, ensure_layer
 from gis_utils.dxf.extract import (
+    extract_3dsolids,
     extract_dxf_circles,
     extract_dxf_layers,
     interpolate_bulge_arc,
     lwpolyline_to_coords,
     save_layers_as_shapefiles,
+    _solid3d_center_2d,
+    _solid3d_to_2d_polygon,
+    _solid3d_to_world_points,
 )
 from gis_utils.dxf.map_od import (
     OD_EXTENSION_DICT_KEY,
@@ -55,6 +59,7 @@ __all__ = [
     "interpolate_bulge_arc",
     "lwpolyline_to_coords",
     "save_layers_as_shapefiles",
+    "extract_3dsolids",
     # DXF conversion
     "shapefile_to_dxf",
     # DXF Map Object Data

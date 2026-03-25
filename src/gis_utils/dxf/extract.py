@@ -22,7 +22,8 @@ from typing import Any
 import ezdxf
 from ezdxf.math import bulge_center, bulge_radius
 import geopandas as gpd
-from shapely.geometry import LineString, Point, Polygon
+import numpy as np
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.validation import make_valid
 
 
@@ -229,6 +230,215 @@ def _hatch_to_coords(entity) -> list[tuple[float, float]] | None:
         if len(vertices) >= 3:
             return vertices
     return None
+
+
+# ---------------------------------------------------------------------------
+# 3DSOLID / ACIS extraction
+# ---------------------------------------------------------------------------
+
+def _acis_get_transform(builder) -> np.ndarray:
+    """Extract 4x4 world transform from ACIS SAB builder."""
+    for ent in builder.entities:
+        if ent.name == "transform":
+            vecs = [tok.value for tok in ent.data if tok.tag == 20]
+            if len(vecs) >= 4:
+                rx, ry, rz, t = vecs[0], vecs[1], vecs[2], vecs[3]
+                return np.array([
+                    [rx[0], ry[0], rz[0], t[0]],
+                    [rx[1], ry[1], rz[1], t[1]],
+                    [rx[2], ry[2], rz[2], t[2]],
+                    [0,     0,     0,     1    ],
+                ])
+    return np.eye(4)
+
+
+def _acis_get_vertices(builder) -> list[tuple[float, float, float]]:
+    """Extract vertex positions (LOCATION_VEC, tag 19) from ACIS point entities."""
+    pts = []
+    for ent in builder.entities:
+        if ent.name == "point":
+            for tok in ent.data:
+                if tok.tag == 19:
+                    pts.append(tok.value)
+    return pts
+
+
+def _solid3d_to_world_points(entity) -> list[tuple[float, float, float]]:
+    """Convert a 3DSOLID entity to world-space 3D points.
+
+    Parses the ACIS SAB body, extracts vertices, and applies the
+    embedded transform matrix to get model-space coordinates.
+    """
+    from ezdxf.acis import sab as acis_sab
+    builder = acis_sab.parse_sab(entity.sab)
+    M = _acis_get_transform(builder)
+    local_pts = _acis_get_vertices(builder)
+
+    world_pts = []
+    for p in local_pts:
+        h = np.array([p[0], p[1], p[2], 1.0])
+        w = M @ h
+        world_pts.append((float(w[0]), float(w[1]), float(w[2])))
+    return world_pts
+
+
+def _solid3d_to_2d_polygon(entity, *, bottom_face: bool = False) -> Polygon | None:
+    """Convert a 3DSOLID to a 2D polygon by projecting vertices to XY plane.
+
+    Note: does NOT apply GEODATA offset. Use extract_3dsolids() for
+    georeferenced output, or apply offset manually.
+    """
+    world_pts_3d = _solid3d_to_world_points(entity)
+    return _solid3d_to_2d_polygon_from_points(world_pts_3d, bottom_face=bottom_face)
+
+
+def _solid3d_center_2d(entity) -> tuple[float, float] | None:
+    """Get the 2D center point of a 3DSOLID (centroid of projected vertices).
+
+    Note: does NOT apply GEODATA offset.
+    """
+    world_pts = _solid3d_to_world_points(entity)
+    if not world_pts:
+        return None
+    xs = [p[0] for p in world_pts]
+    ys = [p[1] for p in world_pts]
+    return (sum(xs) / len(xs), sum(ys) / len(ys))
+
+
+def _get_geodata_offset(doc) -> tuple[float, float]:
+    """Extract the XY offset from DXF GEODATA (design_point - reference_point).
+
+    Many DXF files use a local coordinate system for 3D objects.
+    The GEODATA entity maps local model-space coords to world CRS coords.
+    Returns (dx, dy) offset to add to model-space coordinates.
+    Returns (0, 0) if no GEODATA found or coords are already world-space.
+    """
+    for obj in doc.objects:
+        if obj.dxftype() == "GEODATA":
+            dp = obj.dxf.design_point
+            rp = obj.dxf.reference_point
+            return (dp[0] - rp[0], dp[1] - rp[1])
+    return (0.0, 0.0)
+
+
+def _needs_geodata_offset(world_pts_2d: list[tuple[float, float]], doc) -> bool:
+    """Heuristic: check if points are in local coords (small) vs world coords (large).
+
+    EPSG:25832 coords have X ~500k, Y ~5900k. If points are much smaller,
+    they're likely in a local system and need the GEODATA offset.
+    """
+    if not world_pts_2d:
+        return False
+    xs = [p[0] for p in world_pts_2d]
+    ys = [p[1] for p in world_pts_2d]
+    # If max absolute value is < 100,000, probably local coords
+    return max(abs(max(xs)), abs(max(ys)), abs(min(xs)), abs(min(ys))) < 100_000
+
+
+def extract_3dsolids(
+    dxf_path: str | Path,
+    crs: str,
+    *,
+    layers: list[str] | None = None,
+    bottom_face: bool = False,
+) -> dict[str, gpd.GeoDataFrame]:
+    """Extract 3DSOLID entities from DXF as 2D polygon GeoDataFrames.
+
+    Each 3DSOLID is projected to 2D via convex hull of its ACIS vertices.
+    Automatically applies GEODATA offset if coordinates are in local space.
+
+    Args:
+        dxf_path: Path to DXF file.
+        crs: Coordinate reference system (e.g. 'EPSG:25832').
+        layers: List of layer names to extract. None = all layers with 3DSOLIDs.
+        bottom_face: If True, use only bottom-Z vertices for each solid.
+
+    Returns:
+        Dict of {layer_name: GeoDataFrame} with Polygon geometries.
+    """
+    doc = ezdxf.readfile(str(dxf_path))
+    msp = doc.modelspace()
+    geodata_offset = _get_geodata_offset(doc)
+
+    layer_features: dict[str, list[dict]] = defaultdict(list)
+    for entity in msp:
+        if entity.dxftype() != "3DSOLID":
+            continue
+        layer = entity.dxf.layer
+        if layers and layer not in layers:
+            continue
+        try:
+            world_pts = _solid3d_to_world_points(entity)
+            if not world_pts:
+                continue
+
+            # Apply GEODATA offset if needed
+            pts_2d = [(p[0], p[1]) for p in world_pts]
+            if _needs_geodata_offset(pts_2d, doc) and geodata_offset != (0.0, 0.0):
+                dx, dy = geodata_offset
+                world_pts = [(p[0] + dx, p[1] + dy, p[2]) for p in world_pts]
+
+            poly = _solid3d_to_2d_polygon_from_points(world_pts, bottom_face=bottom_face)
+            if poly is not None and poly.is_valid:
+                feature = {"geometry": poly}
+                zs = [p[2] for p in world_pts]
+                feature["z_min"] = min(zs)
+                feature["z_max"] = max(zs)
+                feature["n_vertices"] = len(world_pts)
+                # Store center for convenience
+                centroid = poly.centroid
+                feature["center_x"] = centroid.x
+                feature["center_y"] = centroid.y
+                layer_features[layer].append(feature)
+        except Exception:
+            continue
+
+    result = {}
+    for layer, features in layer_features.items():
+        if features:
+            gdf = gpd.GeoDataFrame(features, crs=crs)
+            result[layer] = gdf
+    return result
+
+
+def _solid3d_to_2d_polygon_from_points(
+    world_pts_3d: list[tuple[float, float, float]],
+    *,
+    bottom_face: bool = False,
+) -> Polygon | None:
+    """Build 2D polygon from world-space 3D points via convex hull."""
+    from scipy.spatial import ConvexHull
+
+    if len(world_pts_3d) < 3:
+        return None
+
+    if bottom_face:
+        sorted_pts = sorted(world_pts_3d, key=lambda p: p[2])
+        n_bottom = max(3, len(sorted_pts) // 2)
+        pts_2d = [(p[0], p[1]) for p in sorted_pts[:n_bottom]]
+    else:
+        pts_2d = [(p[0], p[1]) for p in world_pts_3d]
+
+    seen = set()
+    unique = []
+    for p in pts_2d:
+        key = (round(p[0], 6), round(p[1], 6))
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+    pts_2d = unique
+
+    if len(pts_2d) < 3:
+        return None
+
+    pts_arr = np.array(pts_2d)
+    try:
+        hull = ConvexHull(pts_arr)
+        ordered = [pts_2d[i] for i in hull.vertices]
+        ordered.append(ordered[0])
+        return Polygon(ordered)
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
