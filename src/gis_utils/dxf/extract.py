@@ -237,9 +237,15 @@ def _hatch_to_coords(entity) -> list[tuple[float, float]] | None:
 # ---------------------------------------------------------------------------
 
 def _acis_get_transform(builder) -> np.ndarray:
-    """Extract 4x4 world transform from ACIS SAB builder."""
+    """Extract 4x4 world transform from ACIS SAB builder.
+
+    Handles two SAB encoding formats:
+    - Tag 20 (POSITION_VEC): separate vectors for rotation columns + translation
+    - Tag 18 (string): space-separated "rx ry rz tx ty tz scale flags..."
+    """
     for ent in builder.entities:
         if ent.name == "transform":
+            # Try tag 20 (vector format) first
             vecs = [tok.value for tok in ent.data if tok.tag == 20]
             if len(vecs) >= 4:
                 rx, ry, rz, t = vecs[0], vecs[1], vecs[2], vecs[3]
@@ -249,6 +255,24 @@ def _acis_get_transform(builder) -> np.ndarray:
                     [rx[2], ry[2], rz[2], t[2]],
                     [0,     0,     0,     1    ],
                 ])
+
+            # Try tag 18 (string format): "r00 r01 r02 r10 r11 r12 r20 r21 r22 tx ty tz ..."
+            for tok in ent.data:
+                if tok.tag == 18 and isinstance(tok.value, str):
+                    parts = tok.value.split()
+                    nums = []
+                    for p in parts:
+                        try:
+                            nums.append(float(p))
+                        except ValueError:
+                            break
+                    if len(nums) >= 12:
+                        return np.array([
+                            [nums[0], nums[3], nums[6], nums[9]],
+                            [nums[1], nums[4], nums[7], nums[10]],
+                            [nums[2], nums[5], nums[8], nums[11]],
+                            [0,       0,       0,       1       ],
+                        ])
     return np.eye(4)
 
 
