@@ -1,0 +1,149 @@
+name: sh_uwat
+description: "SH Umwelt-Atlas (LLUR) — Boden, Erosion, Geologie, Wasser, Landwirtschaft für Schleswig-Holstein. Nur häufig benötigte Layer enthalten; der WFS-Endpunkt hat 150+ Layer (u.a. Naturschutz, WRRL, Wasserschutzgebiete). `gis-workflow check-recipes sh_uwat` zeigt verfügbare Layer."
+tags: [umwelt, umweltatlas, boden, geologie, erosion, wasser, landwirtschaft, SH, schleswig-holstein, LLUR]
+
+connection:
+  type: wfs
+  url: "https://umweltgeodienste.schleswig-holstein.de/WFS_UWAT"
+  version: "2.0.0"
+
+layers:
+  # --- Boden ---
+  bodentypen:
+    wfs_layer: "app:bk25"
+    title: "Bodentypen (BK25, 1:25.000)"
+    tags: [boden, bodentyp, bodenkarte]
+
+  bodenregionen:
+    wfs_layer: "app:bodenregionen"
+    title: "Bodenregionen"
+    tags: [boden, bodenregion]
+
+  leitbodentypen:
+    wfs_layer: "app:buek250"
+    title: "Leitbodentypen (BUEK250, 1:250.000)"
+    tags: [boden, leitbodentyp]
+
+  moorboden:
+    wfs_layer: "app:moorboden"
+    title: "Moorboden"
+    tags: [boden, moor, moorboden, torf]
+
+  sulfatsaure_boeden:
+    wfs_layer: "app:sulfatsaure_boeden"
+    title: "Sulfatsaure Böden"
+    tags: [boden, sulfat, sulfatsauer]
+
+  archivboeden:
+    wfs_layer: "app:archivboeden"
+    title: "Archivböden"
+    tags: [boden, archivboden]
+
+  bbksh:
+    wfs_layer: "app:bbksh"
+    title: "Bodenbelastungskataster SH (BBKSH)"
+    tags: [boden, belastung, kontamination, altlast, bodenbelastungskataster]
+
+  bdf:
+    wfs_layer: "app:bdf_lage"
+    title: "Boden-Dauerbeobachtungsflächen"
+    tags: [boden, dauerbeobachtung, monitoring]
+
+  # --- Erosion / Verdichtung ---
+  wassererosion:
+    wfs_layer: "app:wassererosion"
+    title: "Wassererosionsgefährdung"
+    tags: [erosion, wasser, wassererosion]
+
+  winderosion:
+    wfs_layer: "app:winderosion"
+    title: "Winderosionsgefährdung"
+    tags: [erosion, wind, winderosion]
+
+  bodenerosion:
+    wfs_layer: "app:erosion_fb"
+    title: "Bodenerosion (Fachbeitrag)"
+    tags: [erosion, bodenerosion]
+
+  erosion_lw:
+    wfs_layer: "app:erosion"
+    title: "Erosionsgefährdung (Landwirtschaft)"
+    tags: [erosion, landwirtschaft]
+
+  verdichtung_acker_sommer:
+    wfs_layer: "app:vek_ack_so_bas"
+    title: "Bodenverdichtungsempfindlichkeit Acker/Sommer (1:5.000)"
+    tags: [verdichtung, acker, sommer]
+
+  verdichtung_acker_winter:
+    wfs_layer: "app:vek_ack_wi_bas"
+    title: "Bodenverdichtungsempfindlichkeit Acker/Winter (1:5.000)"
+    tags: [verdichtung, acker, winter]
+
+  verdichtung_gruenland_sommer:
+    wfs_layer: "app:vek_gri_so_bas"
+    title: "Bodenverdichtungsempfindlichkeit Grünland/Sommer (1:5.000)"
+    tags: [verdichtung, grünland, sommer]
+
+  verdichtung_gruenland_winter:
+    wfs_layer: "app:vek_gri_wi_bas"
+    title: "Bodenverdichtungsempfindlichkeit Grünland/Winter (1:5.000)"
+    tags: [verdichtung, grünland, winter]
+
+  # --- Geologie ---
+  geologie:
+    wfs_layer: "app:guek_poly_geo"
+    title: "Geologische Übersichtskarte 1:500.000 (Flächen)"
+    tags: [geologie, geologisch]
+
+  geologie_linien:
+    wfs_layer: "app:guek_linien"
+    title: "Geologische Übersichtskarte 1:500.000 (Linien)"
+    tags: [geologie, geologisch, linien]
+
+  geologie_ablagerung:
+    wfs_layer: "app:guek_ablagerung"
+    title: "Geologische Übersichtskarte 1:500.000 (Ablagerungen)"
+    tags: [geologie, geologisch, ablagerung]
+
+  bohrpunkte:
+    wfs_layer: "app:bohrpunkte"
+    title: "Bohrpunkte"
+    tags: [geologie, bohrung, bohrpunkt]
+
+  bohrungsdichte:
+    wfs_layer: "app:bohrungsdichte"
+    title: "Bohrungsdichte"
+    tags: [geologie, bohrung, dichte]
+
+  # --- Wasser ---
+  fliessgewaesser:
+    wfs_layer: "app:uebergeordnete_fliessgewaesser"
+    title: "Übergeordnete Fließgewässer"
+    tags: [wasser, fluss, fliessgewaesser, gewässer]
+
+  seen:
+    wfs_layer: "app:uebergeordnete_seen"
+    title: "Übergeordnete Seen"
+    tags: [wasser, see, seen, gewässer]
+
+  # --- Landwirtschaft ---
+  ausgleichszulage:
+    wfs_layer: "app:agz_kulisse_flaeche"
+    title: "Ausgleichszulage (benachteiligte Gebiete)"
+    tags: [landwirtschaft, ausgleichszulage, benachteiligt]
+
+  beratungsgebiete:
+    wfs_layer: "app:kulisse_bg_2021"
+    title: "Beratungsgebiete (WRRL, 2021)"
+    tags: [landwirtschaft, beratung, wrrl]
+
+  flurbereinigung:
+    wfs_layer: "app:sh_flurbv"
+    title: "Flurbereinigungsverfahren"
+    tags: [landwirtschaft, flurbereinigung]
+
+  altstandorte:
+    wfs_layer: "app:kreise_altab"
+    title: "Altstandorte (kreisweise)"
+    tags: [altstandort, altlast, kontamination]

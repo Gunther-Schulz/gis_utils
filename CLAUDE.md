@@ -65,9 +65,18 @@ All common functions importable from top level: `from gis_utils import ...`
 
 ### Recipes (Source Profiles)
 - `load_recipe(name, project_dir=None)` — load a source recipe by name (searches project `sources/` then library defaults)
-- `list_recipes(project_dir=None, search=None)` — find available recipes by name/description/tags
+- `list_recipes(project_dir=None, search=None)` — find available recipes by name/description/tags (also searches within multi-layer titles/tags)
 - `apply_attribute_mappings(gdf, mappings)` — add `_lbl` label columns from value maps
-- Shipped recipes: `mv_moore` (kohlenstoffreiche Böden/Moore), `mv_bodenschaetzung` (Bodenschätzwerte)
+- `run_multi_layer_recipe(recipe, layer_aliases, ...)` — download selected layers from a multi-layer recipe
+- `check_recipe_layers(recipe)` — compare multi-layer recipe against live WFS GetCapabilities
+- Shipped single-layer recipes: `mv_bodenschaetzung` (Bodenschätzwerte WMS), `osm_siedlungsflaechen`, `osm_wohngebaeude`
+- Shipped multi-layer recipes:
+  - `sh_uwat` (SH Umwelt-Atlas: 27 layers — Boden, Erosion, Geologie, Wasser, Landwirtschaft)
+  - `sh_kataster` (SH INSPIRE Kataster: Flurstücke + Gemarkungen)
+  - `mv_bodengeologie` (MV Bodengeologie: 7 layers — Moore, Feldkapazität, Nitrat, etc.)
+  - `mv_alkis` (MV ALKIS: 20 layers — Gebäude, Flurstücke, Nutzungen, Verwaltung, Schutzgebiete)
+- Multi-layer recipes define `layers:` dict with per-layer config (wfs_layer, title, tags, column_mapping, attribute_mappings). In workflow.yaml: `layers: [alias1, alias2]` + `output_dir:` instead of `output:`
+- CLI: `gis-workflow check-recipes [recipe_name]` — compares hardcoded layers vs live endpoint
 - Recipe YAMLs define: connection (URL, layer, CRS), detection mode, attribute value mappings, column renaming, post-processing steps, optional Python hooks
 - When a user wants a WMS/WFS source that has no recipe yet:
   1. Query GetCapabilities to discover available layers
@@ -77,7 +86,7 @@ All common functions importable from top level: `from gis_utils import ...`
   5. Research and populate attribute value mappings from official documentation
 
 ### Heavy/Specialized (import from submodule)
-- `run_recipe(recipe, input_boundary=..., output_path=...)` — highest-level API: auto-dispatches to WFS download or WMS vectorization based on recipe connection type
+- `run_recipe(recipe, input_boundary=..., output_path=...)` — highest-level API: auto-dispatches to WFS download or WMS vectorization based on recipe connection type (single-layer)
 - `from gis_utils.wfs import download` — WFS direct vector download (no raster conversion needed)
 - `from gis_utils.wms import run` — WMS download, line/area detection, vectorization to GeoPackage/shapefile. Accepts `recipe="name"` for predefined sources.
 - `from gis_utils.grass import main` — GRASS GIS raster skeletonization to centerline GeoJSON

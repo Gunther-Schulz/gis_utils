@@ -35,8 +35,10 @@ from gis_utils.reporting import (
 from gis_utils.recipes import (
     Recipe,
     apply_attribute_mappings,
+    check_recipe_layers,
     list_recipes,
     load_recipe,
+    run_multi_layer_recipe,
     run_recipe,
 )
 
@@ -78,5 +80,7 @@ __all__ = [
     "load_recipe",
     "list_recipes",
     "run_recipe",
+    "run_multi_layer_recipe",
+    "check_recipe_layers",
     "apply_attribute_mappings",
 ]

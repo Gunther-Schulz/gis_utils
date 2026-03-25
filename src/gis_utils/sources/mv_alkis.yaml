@@ -1,0 +1,148 @@
+name: mv_alkis
+description: "ALKIS MV — amtliches Liegenschaftskataster Mecklenburg-Vorpommern (Gebäude, Flurstücke, Nutzungen, Verwaltung). Nur häufig benötigte Layer enthalten; der WFS-Endpunkt hat 100+ Layer. `gis-workflow check-recipes mv_alkis` zeigt verfügbare Layer."
+tags: [ALKIS, kataster, amtlich, MV, mecklenburg-vorpommern, gebäude, flurstück]
+
+connection:
+  type: wfs
+  url: "https://www.geodaten-mv.de/dienste/alkis_wfs_sf"
+  crs: "EPSG:25833"
+
+layers:
+  # --- Gebäude ---
+  gebaeude:
+    wfs_layer: "adv:AX_Gebaeude"
+    title: "Gebäude"
+    tags: [gebäude, building]
+
+  wohngebaeude:
+    wfs_layer: "adv:AX_Gebaeude"
+    title: "Wohngebäude (nur Gebäude mit Wohnfunktion)"
+    tags: [wohngebäude, gebäude, building, wohnbebauung]
+    exclude_tags:
+      gebaeudefunktion: "^[^1]"
+    attribute_mappings:
+      gebaeudefunktion:
+        "1000": "Wohngebäude"
+        "1010": "Wohnhaus"
+        "1020": "Wohnheim"
+        "1021": "Kinderheim"
+        "1022": "Seniorenheim"
+        "1023": "Schwesternwohnheim"
+        "1024": "Studenten-/Schülerwohnheim"
+        "1025": "Schullandheim"
+        "1100": "Gemischt genutzt mit Wohnen"
+        "1110": "Wohngebäude mit Handel und Dienstleistungen"
+        "1120": "Wohngebäude mit Gewerbe und Industrie"
+        "1121": "Wohn- und Bürogebäude"
+        "1122": "Wohn- und Geschäftsgebäude"
+        "1123": "Wohn- und Betriebsgebäude"
+        "1130": "Wohngebäude mit Gemeinbedarf"
+        "1131": "Wohn- und Verwaltungsgebäude"
+        "1210": "Land-/Forstwirtschaftliches Wohngebäude"
+        "1220": "Land-/Forstwirtschaftliches Wohn-/Wirtschaftsgebäude"
+        "1221": "Bauernhaus"
+        "1222": "Wohn-/Wirtschaftsgebäude"
+        "1223": "Forsthaus"
+        "1310": "Gebäude zur Freizeitgestaltung"
+        "1311": "Ferienhaus"
+        "1312": "Wochenendhaus"
+        "1313": "Gartenhaus"
+    column_mapping:
+      gebaeudefunktion: funktion
+      gebaeudefunktion_lbl: funktion_lbl
+      grundflaeche: grundflaeche_m2
+
+  # --- Kataster ---
+  flurstuecke:
+    wfs_layer: "adv:AX_Flurstueck"
+    title: "Flurstücke"
+    tags: [flurstück, parcel, grundstück, kataster]
+
+  gemarkung:
+    wfs_layer: "adv:AX_Gemarkung"
+    title: "Gemarkungen"
+    tags: [gemarkung, kataster]
+
+  gemarkungsteil_flur:
+    wfs_layer: "adv:AX_GemarkungsteilFlur"
+    title: "Gemarkungsteil / Flur"
+    tags: [gemarkung, flur, kataster]
+
+  # --- Verwaltung ---
+  gemeinde:
+    wfs_layer: "adv:AX_Gemeinde"
+    title: "Gemeinden"
+    tags: [gemeinde, verwaltung]
+
+  gemeindeteil:
+    wfs_layer: "adv:AX_Gemeindeteil"
+    title: "Gemeindeteile"
+    tags: [gemeindeteil, verwaltung]
+
+  kommunales_gebiet:
+    wfs_layer: "adv:AX_KommunalesGebiet"
+    title: "Kommunales Gebiet"
+    tags: [gemeinde, kommune, verwaltung]
+
+  kreis_region:
+    wfs_layer: "adv:AX_KreisRegion"
+    title: "Kreise / kreisfreie Städte"
+    tags: [kreis, region, verwaltung]
+
+  # --- Nutzungen ---
+  landwirtschaft:
+    wfs_layer: "adv:AX_Landwirtschaft"
+    title: "Landwirtschaftsflächen"
+    tags: [landwirtschaft, nutzung, acker, grünland]
+
+  wald:
+    wfs_layer: "adv:AX_Wald"
+    title: "Waldflächen"
+    tags: [wald, forst, nutzung]
+
+  gewaesser:
+    wfs_layer: "adv:AX_Fliessgewaesser"
+    title: "Fließgewässer"
+    tags: [gewässer, fluss, wasser]
+
+  stehendes_gewaesser:
+    wfs_layer: "adv:AX_StehendesGewaesser"
+    title: "Stehende Gewässer"
+    tags: [gewässer, see, wasser]
+
+  industrie_gewerbe:
+    wfs_layer: "adv:AX_IndustrieUndGewerbeflaeche"
+    title: "Industrie- und Gewerbeflächen"
+    tags: [industrie, gewerbe, nutzung]
+
+  wohnbauflaeche:
+    wfs_layer: "adv:AX_FlaecheGemischterNutzung"
+    title: "Fläche gemischter Nutzung"
+    tags: [wohnen, gemischt, nutzung]
+
+  # --- Infrastruktur ---
+  strassen:
+    wfs_layer: "adv:AX_Strasse"
+    title: "Straßen"
+    tags: [straße, verkehr, infrastruktur]
+
+  ortslage:
+    wfs_layer: "adv:AX_Ortslage"
+    title: "Ortslagen"
+    tags: [ortslage, siedlung]
+
+  # --- Schutzgebiete / Recht ---
+  naturschutzrecht:
+    wfs_layer: "adv:AX_NaturUmweltOderBodenschutzrecht"
+    title: "Natur-, Umwelt- oder Bodenschutzrecht"
+    tags: [naturschutz, umweltschutz, bodenschutz, recht]
+
+  schutzgebiet_natur:
+    wfs_layer: "adv:AX_SchutzgebietNachNaturUmweltOderBodenschutzrecht"
+    title: "Schutzgebiete (Natur/Umwelt/Bodenschutz)"
+    tags: [schutzgebiet, naturschutz, umweltschutz]
+
+  denkmalschutz:
+    wfs_layer: "adv:AX_Denkmalschutzrecht"
+    title: "Denkmalschutzrecht"
+    tags: [denkmal, denkmalschutz, recht]

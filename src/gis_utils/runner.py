@@ -77,6 +77,19 @@ def resolve_order(steps: list[dict]) -> list[dict]:
     return [by_name[name] for name in ordered]
 
 
+def _collect_outputs(step: dict) -> list[str]:
+    """Collect all expected output paths from a step definition."""
+    outputs = list(step.get("outputs", []))
+    if not outputs and step.get("output"):
+        outputs = [step["output"]]
+    # Multi-layer recipe: output_dir + layers → one .gpkg per alias
+    if not outputs and step.get("output_dir") and step.get("layers"):
+        output_dir = step["output_dir"]
+        for alias in step["layers"]:
+            outputs.append(f"{output_dir.rstrip('/')}/{alias}.gpkg")
+    return outputs
+
+
 def should_skip(step: dict, project_dir: Path) -> bool:
     """Check if an 'auto' step can be skipped.
 
@@ -85,10 +98,7 @@ def should_skip(step: dict, project_dir: Path) -> bool:
     """
     if step.get("run", "auto") != "auto":
         return False
-    outputs = step.get("outputs", [])
-    # Recipe steps use singular 'output'
-    if not outputs and step.get("output"):
-        outputs = [step["output"]]
+    outputs = _collect_outputs(step)
     if not outputs:
         return False
 
@@ -151,34 +161,23 @@ def run_step(step: dict, project_dir: Path, conda_env: str | None = None) -> boo
         return False
 
 
-def _run_recipe_step(step: dict, project_dir: Path) -> bool:
-    """Execute a recipe-based workflow step."""
-    from gis_utils.recipes import run_recipe
-
-    recipe_name = step["recipe"]
-    output = step.get("output")
+def _resolve_extent(step: dict, project_dir: Path) -> dict:
+    """Resolve input_boundary + buffer_m into kwargs for recipe runners."""
     input_boundary = step.get("input_boundary")
     crs = step.get("crs")
     buffer_m = step.get("buffer_m")
-
     kwargs = {}
     if crs:
         kwargs["crs"] = crs
-
-    # Resolve input_boundary relative to project dir
     if input_boundary:
         input_path = project_dir / input_boundary
         if not input_path.exists():
-            print(f"  [ERROR] input_boundary not found: {input_path}")
-            return False
-
-        # Apply buffer if specified (expand extent for search radius)
+            raise FileNotFoundError(f"input_boundary not found: {input_path}")
         if buffer_m:
             import geopandas as gpd
             if not crs:
-                raise ValueError(f"Recipe step '{step['name']}': crs is required when using buffer_m. No silent CRS defaults.")
-            _crs = crs
-            gdf = gpd.read_file(input_path).to_crs(_crs)
+                raise ValueError(f"Recipe step '{step['name']}': crs is required when using buffer_m.")
+            gdf = gpd.read_file(input_path).to_crs(crs)
             b = gdf.total_bounds
             kwargs["extent"] = (
                 b[0] - buffer_m, b[1] - buffer_m,
@@ -186,15 +185,48 @@ def _run_recipe_step(step: dict, project_dir: Path) -> bool:
             )
         else:
             kwargs["input_boundary"] = input_path
+    return kwargs
 
+
+def _run_recipe_step(step: dict, project_dir: Path) -> bool:
+    """Execute a recipe-based workflow step (single or multi-layer)."""
+    recipe_name = step["recipe"]
+    layer_aliases = step.get("layers")
+
+    try:
+        extent_kwargs = _resolve_extent(step, project_dir)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"  [ERROR] {e}")
+        return False
+
+    # Multi-layer recipe
+    if layer_aliases:
+        from gis_utils.recipes import run_multi_layer_recipe
+        output_dir = step.get("output_dir")
+        output_dir_path = project_dir / output_dir if output_dir else None
+        try:
+            run_multi_layer_recipe(
+                recipe_name,
+                layer_aliases,
+                output_dir=output_dir_path,
+                recipe_dir=project_dir,
+                **extent_kwargs,
+            )
+            return True
+        except Exception as e:
+            print(f"  [ERROR] Recipe '{recipe_name}' failed: {e}")
+            return False
+
+    # Single-layer recipe
+    from gis_utils.recipes import run_recipe
+    output = step.get("output")
     output_path = project_dir / output if output else None
-
     try:
         run_recipe(
             recipe_name,
             output_path=output_path,
             recipe_dir=project_dir,
-            **kwargs,
+            **extent_kwargs,
         )
         return True
     except Exception as e:
@@ -259,8 +291,12 @@ def run_workflow(
                 print(f"        → {step['script']}")
             elif step.get("recipe"):
                 detail = f"recipe:{step['recipe']}"
+                if step.get("layers"):
+                    detail += f" [{len(step['layers'])} layers]"
                 if step.get("output"):
                     detail += f" → {step['output']}"
+                if step.get("output_dir"):
+                    detail += f" → {step['output_dir']}"
                 print(f"        → {detail}")
             continue
 
@@ -420,6 +456,42 @@ def init_project(project_dir: str | Path) -> None:
     print(f"\nProject initialized: {name}")
 
 
+def _run_check_recipes(recipe_name: str | None, project_dir: str) -> None:
+    """Run check-recipes command: compare multi-layer recipes against live WFS."""
+    from gis_utils.recipes import check_recipe_layers, list_recipes, load_recipe
+
+    project_path = Path(project_dir).resolve()
+
+    if recipe_name:
+        recipes = [load_recipe(recipe_name, project_dir=project_path)]
+    else:
+        recipes = [r for r in list_recipes(project_path) if r.is_multi_layer]
+
+    if not recipes:
+        print("No multi-layer recipes found.")
+        return
+
+    for recipe in recipes:
+        print(f"\n--- {recipe.name} ---")
+        print(f"URL: {recipe.connection.get('url', '?')}")
+        try:
+            result = check_recipe_layers(recipe, project_dir=project_path)
+        except Exception as e:
+            print(f"  [ERROR] {e}")
+            continue
+        print(f"  OK: {len(result['ok'])} layers match")
+        if result["missing"]:
+            print(f"  MISSING from endpoint ({len(result['missing'])}):")
+            for l in result["missing"]:
+                print(f"    - {l}")
+        if result["new"]:
+            print(f"  NEW on endpoint ({len(result['new'])}):")
+            for l in result["new"]:
+                print(f"    + {l}")
+        if not result["missing"] and not result["new"]:
+            print("  All layers up to date.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="GIS project workflow runner.",
@@ -443,6 +515,17 @@ def main():
         help="Project directory (default: current directory)",
     )
 
+    # `gis-workflow check-recipes`
+    check_parser = subparsers.add_parser("check-recipes", help="Compare multi-layer recipes against live WFS")
+    check_parser.add_argument(
+        "recipe_name", nargs="?", default=None,
+        help="Recipe name to check (default: all multi-layer recipes)",
+    )
+    check_parser.add_argument(
+        "project_dir", nargs="?", default=".",
+        help="Project directory (default: current directory)",
+    )
+
     args = parser.parse_args()
 
     # Default to "run" if no subcommand given but args look like a path
@@ -453,6 +536,10 @@ def main():
 
     if args.command == "init":
         init_project(args.project_dir)
+        return
+
+    if args.command == "check-recipes":
+        _run_check_recipes(args.recipe_name, args.project_dir)
         return
 
     ok = run_workflow(

@@ -29,7 +29,45 @@ class Recipe:
     post_processing: list[dict[str, Any]] = field(default_factory=list)
     hooks: str | None = None
     exclude_tags: dict[str, str] = field(default_factory=dict)
+    layers: dict[str, dict[str, Any]] = field(default_factory=dict)
     _source_path: Path | None = field(default=None, repr=False)
+
+    @property
+    def is_multi_layer(self) -> bool:
+        return bool(self.layers)
+
+    def layer_aliases(self) -> list[str]:
+        """Return all layer aliases defined in this recipe."""
+        return list(self.layers.keys())
+
+    def get_layer_recipe(self, alias: str) -> "Recipe":
+        """Return a single-layer Recipe for the given alias.
+
+        Merges per-layer config (attribute_mappings, column_mapping, etc.)
+        with the parent recipe's connection info, producing a Recipe that
+        works with the existing run_recipe / wfs.download pipeline.
+        """
+        if alias not in self.layers:
+            raise KeyError(
+                f"Layer '{alias}' not found in recipe '{self.name}'. "
+                f"Available: {self.layer_aliases()}"
+            )
+        layer_cfg = self.layers[alias]
+        conn = dict(self.connection)
+        conn["layer"] = layer_cfg.get("wfs_layer", alias)
+        return Recipe(
+            name=f"{self.name}:{alias}",
+            description=layer_cfg.get("title", alias),
+            tags=layer_cfg.get("tags", []),
+            connection=conn,
+            detection=layer_cfg.get("detection", self.detection),
+            attribute_mappings=layer_cfg.get("attribute_mappings", {}),
+            column_mapping=layer_cfg.get("column_mapping", {}),
+            post_processing=layer_cfg.get("post_processing", self.post_processing),
+            hooks=layer_cfg.get("hooks", self.hooks),
+            exclude_tags=layer_cfg.get("exclude_tags", {}),
+            _source_path=self._source_path,
+        )
 
 
 def _library_sources_dir() -> Path:
@@ -72,6 +110,7 @@ def _parse_recipe(data: dict, source_path: Path | None = None) -> Recipe:
         post_processing=data.get("post_processing", []),
         hooks=data.get("hooks"),
         exclude_tags=data.get("exclude_tags", {}),
+        layers=data.get("layers", {}),
         _source_path=source_path,
     )
 
@@ -125,14 +164,23 @@ def list_recipes(
 
     if search:
         term = search.lower()
-        recipes = [
-            r for r in recipes
-            if term in r.name.lower()
-            or term in r.description.lower()
-            or any(term in t.lower() for t in r.tags)
-        ]
+        recipes = [r for r in recipes if _recipe_matches(r, term)]
 
     return recipes
+
+
+def _recipe_matches(recipe: Recipe, term: str) -> bool:
+    """Check if a recipe matches a search term (name, description, tags, layer info)."""
+    if (term in recipe.name.lower()
+            or term in recipe.description.lower()
+            or any(term in t.lower() for t in recipe.tags)):
+        return True
+    for alias, cfg in recipe.layers.items():
+        if (term in alias.lower()
+                or term in cfg.get("title", "").lower()
+                or any(term in t.lower() for t in cfg.get("tags", []))):
+            return True
+    return False
 
 
 def resolve_connection(recipe: Recipe) -> dict[str, str]:
@@ -366,6 +414,126 @@ def run_recipe(
         wms_kwargs.update(kwargs)
         gdf = run(**wms_kwargs)
     return gdf
+
+
+def run_multi_layer_recipe(
+    recipe: str | Recipe,
+    layer_aliases: list[str],
+    *,
+    input_boundary: "Path | str | None" = None,
+    extent: tuple[float, float, float, float] | None = None,
+    output_dir: "Path | str | None" = None,
+    recipe_dir: "Path | str | None" = None,
+    **kwargs,
+) -> dict[str, "gpd.GeoDataFrame"]:
+    """Run selected layers from a multi-layer recipe.
+
+    Args:
+        recipe: Recipe name or Recipe object (must be multi-layer).
+        layer_aliases: List of layer aliases to download.
+        input_boundary: Shapefile/GeoPackage to derive extent from.
+        extent: (minx, miny, maxx, maxy) bounding box.
+        output_dir: Directory for output files (one .gpkg per layer).
+        recipe_dir: Project directory for recipe search.
+        **kwargs: Additional arguments passed to the underlying function.
+
+    Returns:
+        Dict mapping alias to GeoDataFrame.
+    """
+    if isinstance(recipe, str):
+        _recipe = load_recipe(recipe, project_dir=Path(recipe_dir) if recipe_dir else None)
+    else:
+        _recipe = recipe
+
+    if not _recipe.is_multi_layer:
+        raise ValueError(f"Recipe '{_recipe.name}' is not a multi-layer recipe")
+
+    available = _recipe.layer_aliases()
+    unknown = [a for a in layer_aliases if a not in available]
+    if unknown:
+        raise KeyError(
+            f"Unknown layers {unknown} in recipe '{_recipe.name}'. "
+            f"Available: {available}"
+        )
+
+    _output_dir = Path(output_dir) if output_dir else None
+    if _output_dir:
+        _output_dir.mkdir(parents=True, exist_ok=True)
+
+    results = {}
+    for alias in layer_aliases:
+        layer_recipe = _recipe.get_layer_recipe(alias)
+        out_path = _output_dir / f"{alias}.gpkg" if _output_dir else None
+        results[alias] = run_recipe(
+            layer_recipe,
+            input_boundary=input_boundary,
+            extent=extent,
+            output_path=out_path,
+            recipe_dir=recipe_dir,
+            **kwargs,
+        )
+    return results
+
+
+def check_recipe_layers(
+    recipe: str | Recipe,
+    *,
+    project_dir: "Path | str | None" = None,
+) -> dict[str, list[str]]:
+    """Compare a multi-layer recipe against live WFS GetCapabilities.
+
+    Returns dict with keys:
+        missing: layers in recipe but not on endpoint
+        new: layers on endpoint but not in recipe
+        ok: layers in both
+    """
+    if isinstance(recipe, str):
+        _recipe = load_recipe(recipe, project_dir=Path(project_dir) if project_dir else None)
+    else:
+        _recipe = recipe
+
+    if not _recipe.is_multi_layer:
+        raise ValueError(f"Recipe '{_recipe.name}' is not a multi-layer recipe")
+
+    conn = _recipe.connection
+    url = conn.get("url")
+    version = conn.get("version", "2.0.0")
+    if not url:
+        raise ValueError(f"Recipe '{_recipe.name}': no url in connection")
+
+    import xml.etree.ElementTree as ET
+    import urllib.request
+
+    caps_url = f"{url}?SERVICE=WFS&REQUEST=GetCapabilities&VERSION={version}"
+    with urllib.request.urlopen(caps_url, timeout=30) as resp:
+        tree = ET.parse(resp)
+    root = tree.getroot()
+
+    # Extract all FeatureType names (handle namespaces)
+    remote_layers = set()
+    for elem in root.iter():
+        tag = elem.tag
+        if tag.endswith("}Name") or tag == "Name":
+            parent_tag = ""
+            # Walk up to check parent is FeatureType
+            # Simpler: just collect all Name elements under FeatureType
+            pass
+        if tag.endswith("}FeatureType") or tag == "FeatureType":
+            for child in elem:
+                if child.tag.endswith("}Name") or child.tag == "Name":
+                    remote_layers.add(child.text.strip())
+                    break
+
+    recipe_wfs_layers = {
+        cfg.get("wfs_layer", alias)
+        for alias, cfg in _recipe.layers.items()
+    }
+
+    ok = sorted(recipe_wfs_layers & remote_layers)
+    missing = sorted(recipe_wfs_layers - remote_layers)
+    new = sorted(remote_layers - recipe_wfs_layers)
+
+    return {"ok": ok, "missing": missing, "new": new}
 
 
 def _run_osm_recipe(
