@@ -10,6 +10,7 @@ from gis_utils.dxf.extract import (
     interpolate_bulge_arc,
     lwpolyline_to_coords,
     save_layers_as_shapefiles,
+    solid3d_to_circle,
     _solid3d_center_2d,
     _solid3d_to_2d_polygon,
     _solid3d_to_world_points,
@@ -60,6 +61,7 @@ __all__ = [
     "lwpolyline_to_coords",
     "save_layers_as_shapefiles",
     "extract_3dsolids",
+    "solid3d_to_circle",
     # DXF conversion
     "shapefile_to_dxf",
     # DXF Map Object Data

@@ -306,6 +306,45 @@ def _solid3d_to_world_points(entity) -> list[tuple[float, float, float]]:
     return world_pts
 
 
+def solid3d_to_circle(
+    entity,
+    diameter: float,
+    *,
+    vertex_index: int | str = "midpoint",
+    resolution: int = 64,
+) -> tuple[Point, Polygon]:
+    """Convert a cylindrical 3DSOLID to a 2D center point and circle polygon.
+
+    For cylindrical/conical solids with 2 ACIS vertices (top/bottom of axis),
+    projects to XY as the circle center.
+
+    Args:
+        entity: ezdxf 3DSOLID entity.
+        diameter: Circle diameter in map units (meters).
+        vertex_index: Which ACIS vertex to use as center.
+                      "midpoint" (default) = XY midpoint of all vertices.
+                      int = specific vertex index (0, 1, -1, etc.).
+        resolution: Number of segments for the circle polygon.
+
+    Returns:
+        (center_point, circle_polygon) — both as Shapely geometries.
+    """
+    world_pts = _solid3d_to_world_points(entity)
+    if not world_pts:
+        raise ValueError("No ACIS vertices found in 3DSOLID")
+
+    if vertex_index == "midpoint":
+        cx = sum(p[0] for p in world_pts) / len(world_pts)
+        cy = sum(p[1] for p in world_pts) / len(world_pts)
+    else:
+        pt = world_pts[vertex_index]
+        cx, cy = pt[0], pt[1]
+
+    center = Point(cx, cy)
+    circle = center.buffer(diameter / 2.0, resolution=resolution)
+    return center, circle
+
+
 def _solid3d_to_2d_polygon(entity, *, bottom_face: bool = False) -> Polygon | None:
     """Convert a 3DSOLID to a 2D polygon by projecting vertices to XY plane.
 
