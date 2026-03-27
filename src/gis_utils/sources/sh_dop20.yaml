@@ -1,0 +1,14 @@
+name: sh_dop20
+description: "SH DOP20 — Digitale Orthophotos 20cm Bodenauflösung, Echtfarben (RGB). Open Data, GDI-SH / LVermGeo SH."
+tags: [dop, orthophoto, luftbild, aerial, rgb, SH, schleswig-holstein, open-data]
+
+connection:
+  type: wms
+  url: "https://service.gdi-sh.de/WMS_SH_DOP20col_OpenGBD"
+  layer: "sh_dop20_rgb"
+  crs: "EPSG:25832"
+
+detection:
+  mode: areas
+  area_background: alpha
+  download_only: true
