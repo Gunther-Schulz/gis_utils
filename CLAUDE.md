@@ -19,6 +19,30 @@ This library is in alpha. Do not add backward-compatibility shims, deprecated al
 - **Safe defaults are OK**: things like `timeout=120`, `dissolve=True`, `simplify_tolerance=1.0` — where a wrong value causes obvious failures or minor quality differences, not silent corruption.
 - **When in doubt**: require the parameter with no default. An explicit error is always better than silently wrong data.
 
+## Discovery / Catalog
+
+Before reading source files, use the auto-generated catalog to discover what's available:
+
+```python
+from gis_utils import catalog
+result = catalog()                          # everything
+result = catalog(search="dxf")              # filtered
+result = catalog(project_dir="/path/to/project")  # include project-local recipes
+```
+
+CLI: `gis-workflow catalog [--search TERM] [project_dir]`
+
+Returns a dict with `version`, `functions` (grouped by module with signatures), `recipes` (with layers/tags), and `cli` commands.
+
+### IMPORTANT: Keeping the catalog in sync
+
+The catalog auto-discovers functions via `inspect` and recipes via `list_recipes()`, so most changes are picked up automatically. However, **you must update `catalog.py`** when:
+
+- **Adding a new submodule** — add it to the `_MODULES` list in `catalog.py` so its functions are discovered
+- **Adding a new CLI subcommand** — add it to the `_CLI_COMMANDS` list in `catalog.py`
+
+Function signatures and docstrings are introspected automatically — no manual updates needed for those.
+
 ## API Quick Reference
 
 All common functions importable from top level: `from gis_utils import ...`

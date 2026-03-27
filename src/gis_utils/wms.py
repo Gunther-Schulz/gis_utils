@@ -1367,7 +1367,6 @@ def run(
         if not input_boundary:
             raise ValueError("Either extent or input_boundary must be provided")
         extent = get_bounds_from_shape(input_boundary, crs=_crs)
-        if output_path is None:
     _out = output_path
     if not _out and (DOWNLOAD_ONLY if download_only is None else download_only) is False:
         raise ValueError("output_path is required when not download_only")

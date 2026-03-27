@@ -39,6 +39,7 @@ from gis_utils.reporting import (
     intersection_areas,
 )
 from gis_utils.alkis import find_flurstuecke
+from gis_utils.catalog import catalog
 from gis_utils.recipes import (
     Recipe,
     apply_attribute_mappings,
@@ -95,4 +96,6 @@ __all__ = [
     "apply_attribute_mappings",
     # ALKIS convenience
     "find_flurstuecke",
+    # Discovery
+    "catalog",
 ]

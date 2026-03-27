@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import time
@@ -530,6 +531,14 @@ def main():
         help="Project directory (default: current directory)",
     )
 
+    # `gis-workflow catalog`
+    cat_parser = subparsers.add_parser("catalog", help="Print library catalog as JSON")
+    cat_parser.add_argument("--search", "-q", default=None, help="Filter by keyword")
+    cat_parser.add_argument(
+        "project_dir", nargs="?", default=".",
+        help="Project directory for local recipes (default: current directory)",
+    )
+
     args = parser.parse_args()
 
     # Default to "run" if no subcommand given but args look like a path
@@ -544,6 +553,12 @@ def main():
 
     if args.command == "check-recipes":
         _run_check_recipes(args.recipe_name, args.project_dir)
+        return
+
+    if args.command == "catalog":
+        from gis_utils.catalog import catalog as _catalog
+        result = _catalog(search=args.search, project_dir=args.project_dir)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
         return
 
     ok = run_workflow(
