@@ -116,6 +116,11 @@ layers:
     title: "Bohrungsdichte"
     tags: [geologie, bohrung, dichte]
 
+  grundwasserkoerper:
+    wfs_layer: "app:gwk_basis"
+    title: "Grundwasserkörper (Basis)"
+    tags: [wasser, grundwasser, grundwasserkörper, gwk]
+
   # --- Wasser ---
   fliessgewaesser:
     wfs_layer: "app:uebergeordnete_fliessgewaesser"

@@ -1,0 +1,126 @@
+name: sh_lrp_karte1
+description: "SH Landschaftsrahmenplan Karte 1 (2020) — Schutzgebiete, Natura 2000, Biotopverbund, Wasserschutzgebiete u.a. WFS-Endpunkt des LLUR."
+tags: [schutzgebiet, naturschutz, natura2000, ffh, spa, biotopverbund, wasserschutzgebiet, landschaftsrahmenplan, LRP, SH, schleswig-holstein, LLUR]
+
+connection:
+  type: wfs
+  url: "https://umweltgeodienste.schleswig-holstein.de/WFS_LRP_Karte1_2020"
+  version: "2.0.0"
+
+layers:
+  # --- Natura 2000 ---
+  natura2000:
+    wfs_layer: "app:KARTE1_NATURA2000_2020"
+    title: "Natura 2000 Gebiete"
+    tags: [natura2000, ffh, spa, schutzgebiet]
+
+  ffh_gebiete:
+    wfs_layer: "app:KARTE1_FFH_GEBIETE_POINT_2020"
+    title: "FFH-Gebiete (Punkte)"
+    tags: [ffh, natura2000, punkt]
+
+  spa_gebiete:
+    wfs_layer: "app:KARTE1_SPA_GEBIETE_PO_2020"
+    title: "EU-Vogelschutzgebiete (SPA)"
+    tags: [spa, vogelschutz, natura2000]
+
+  # --- Biotopverbund ---
+  biotopverbund:
+    wfs_layer: "app:KARTE1_BVS_2020"
+    title: "Biotopverbundsystem"
+    tags: [biotopverbund, bvs, verbund]
+
+  # --- Naturschutzgebiete ---
+  nsg_bestand:
+    wfs_layer: "app:KARTE1_NSG_BESTAND_2020"
+    title: "Naturschutzgebiete (Bestand)"
+    tags: [nsg, naturschutzgebiet, bestand]
+
+  nsg_vorschlag:
+    wfs_layer: "app:KARTE1_NSG_VORSCHLAG_2020"
+    title: "Naturschutzgebiete (Vorschlag)"
+    tags: [nsg, naturschutzgebiet, vorschlag]
+
+  # --- Nationalpark / Biosphäre / Naturwald ---
+  nationalpark:
+    wfs_layer: "app:KARTE1_NP_LLUR_V2_2020"
+    title: "Nationalpark"
+    tags: [nationalpark, np]
+
+  biosphaerenreservate:
+    wfs_layer: "app:KARTE1_BIOSPHAERENRESERVATE_2020"
+    title: "Biosphärenreservate"
+    tags: [biosphärenreservat, biosphaere]
+
+  naturwald:
+    wfs_layer: "app:KARTE1_NATURWALD_2020"
+    title: "Naturwald"
+    tags: [naturwald, wald]
+
+  # --- Wasserschutzgebiete ---
+  wsg_zonen:
+    wfs_layer: "app:KARTE1_WSG_ZONEN_2020"
+    title: "Wasserschutzgebiete (Zonen)"
+    tags: [wasserschutzgebiet, wsg, zone]
+
+  wsg_aussengrenze:
+    wfs_layer: "app:KARTE1_WSG_AUSSENGRENZE_2020"
+    title: "Wasserschutzgebiete (Außengrenze)"
+    tags: [wasserschutzgebiet, wsg, aussengrenze]
+
+  wsg_punkte:
+    wfs_layer: "app:KARTE1_WSG_P_2020"
+    title: "Wasserschutzgebiete (Punkte)"
+    tags: [wasserschutzgebiet, wsg, punkt]
+
+  # --- Artenschutz / Vögel ---
+  wiesenvogelgebiete:
+    wfs_layer: "app:KARTE1_WIESENVOGELGE_2020"
+    title: "Wiesenvogelgebiete"
+    tags: [wiesenvogel, artenschutz, vogel]
+
+  seeadler_puffer:
+    wfs_layer: "app:KARTE1_SEEADLER_PUF_V2_2020"
+    title: "Seeadler-Pufferzonen"
+    tags: [seeadler, artenschutz, puffer]
+
+  seeadler_dichtezentren:
+    wfs_layer: "app:KARTE1_SEEADLER_DICHT_V2_2020"
+    title: "Seeadler-Dichtezentren"
+    tags: [seeadler, artenschutz, dichtezentrum]
+
+  nahrung_gaense:
+    wfs_layer: "app:KARTE1_NAHRUNG_GANS_2020"
+    title: "Nahrungsgebiete Gänse"
+    tags: [gans, gänse, nahrung, artenschutz]
+
+  kuestenstreifen_nahrung:
+    wfs_layer: "app:KARTE1_KUESTREIF_NAHR_2020"
+    title: "Küstenstreifen Nahrungsgebiete"
+    tags: [küste, küstenstreifen, nahrung]
+
+  # --- Sonstige ---
+  wildlebende_gross_pflanzen:
+    wfs_layer: "app:KARTE1_P21GR20HA_LA_V2_2020"
+    title: "Wildlebende Pflanzen- und Tierarten (§21 Gebiete >20ha)"
+    tags: [pflanzen, tiere, paragraph21, artenschutz]
+
+  wildgaenserast:
+    wfs_layer: "app:KARTE1_WGG_2020"
+    title: "Wildgänserastgebiete"
+    tags: [wildgans, gänse, rastgebiet]
+
+  vorrangseen:
+    wfs_layer: "app:KARTE1_VORRANGSEEN_2020"
+    title: "Vorrangseen"
+    tags: [see, vorrang, gewässer]
+
+  vorrangfliessgewaesser:
+    wfs_layer: "app:KARTE1_VORRANGFLIESSGEWAESSER_2020"
+    title: "Vorrangfließgewässer"
+    tags: [fluss, fliessgewässer, vorrang, gewässer]
+
+  sondergebiete_bund:
+    wfs_layer: "app:KARTE1_SONDERGEB_BUND_2020"
+    title: "Sondergebiete des Bundes"
+    tags: [sondergebiet, bund, militär]
