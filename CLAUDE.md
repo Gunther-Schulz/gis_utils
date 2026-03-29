@@ -25,15 +25,18 @@ When producing GeoDataFrame outputs, always explode MultiPolygons into individua
 
 ## Geometry tasks: analyze data before coding
 
-For geometry conversion/analysis tasks (lines to polygons, closing gaps, finding boundaries, etc.), **always analyze the data before writing any solution code**:
+For geometry conversion/analysis tasks (lines to polygons, closing gaps, finding boundaries, extracting features, etc.), **always analyze the data before writing any solution code**:
 
 1. **Inspect the data**: count features, types, lengths, orientations
 2. **Measure relationships**: gaps between endpoints, connectivity, parallel vs crossing
 3. **Ask the user** if the physical interpretation is unclear ("these look like two parallel boundary lines with cross-lines between them — is that right?")
-4. **Start with the naive approach** — what would you do by hand in AutoCAD? (extend, trim, close, connect). Try that FIRST.
-5. **Only escalate** to computational geometry algorithms (concave hull, alpha shapes, graph traversal) if the simple approach actually fails on the data
+4. **Think: how would a user solve this manually?** What steps would they take in AutoCAD, QGIS, or another GIS application? The manual workflow almost always reveals the simplest automated approach:
+   - AutoCAD: extend, trim, close, join, hatch boundary, polyline edit
+   - QGIS: buffer, dissolve, merge, polygonize, select by location, field calculator
+   - The manual steps translate directly to shapely/geopandas operations
+5. **Start with that naive approach FIRST.** Only escalate to computational geometry algorithms (concave hull, alpha shapes, graph traversal) if the simple approach actually fails on the data
 
-Example: 13 disconnected polylines with 5–18 m gaps → don't reach for concave hull or planar graph traversal. Just extend each line 10 m from both endpoints, node at intersections, polygonize. Done.
+Example: 13 disconnected polylines with 5–18 m gaps → a user in AutoCAD would just extend the lines and trim. Don't reach for concave hull or planar graph traversal. Just `extend_line` + `polygonize`. Done.
 
 ## Discovery / Catalog
 
