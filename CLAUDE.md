@@ -9,6 +9,10 @@ pip install -e ~/dev/Gunther-Schulz/gis_utils
 
 This library is in alpha. Do not add backward-compatibility shims, deprecated aliases, re-exports of renamed symbols, or any code whose sole purpose is keeping old callers working. When something changes, just change it. All callers are in our own projects and can be updated immediately.
 
+## Output convention: always single Polygons, not MultiPolygons
+
+When producing GeoDataFrame outputs, always explode MultiPolygons into individual Polygon features (`.explode(index_parts=False)`). This applies to all scripts and library functions that write GeoPackage/Shapefile outputs. MultiPolygons make styling, labeling, and area calculations unreliable in QGIS.
+
 ## CRITICAL: No dangerous defaults or silent fallbacks
 
 **Be extremely careful with default parameter values and fallback patterns** (e.g. `x = x or SOME_DEFAULT`). Silent defaults can cause hard-to-detect data corruption. Rules:
@@ -18,6 +22,18 @@ This library is in alpha. Do not add backward-compatibility shims, deprecated al
 - **Any parameter where a wrong default produces valid-looking but incorrect output**: make it required, not optional with a default.
 - **Safe defaults are OK**: things like `timeout=120`, `dissolve=True`, `simplify_tolerance=1.0` — where a wrong value causes obvious failures or minor quality differences, not silent corruption.
 - **When in doubt**: require the parameter with no default. An explicit error is always better than silently wrong data.
+
+## Geometry tasks: analyze data before coding
+
+For geometry conversion/analysis tasks (lines to polygons, closing gaps, finding boundaries, etc.), **always analyze the data before writing any solution code**:
+
+1. **Inspect the data**: count features, types, lengths, orientations
+2. **Measure relationships**: gaps between endpoints, connectivity, parallel vs crossing
+3. **Ask the user** if the physical interpretation is unclear ("these look like two parallel boundary lines with cross-lines between them — is that right?")
+4. **Start with the naive approach** — what would you do by hand in AutoCAD? (extend, trim, close, connect). Try that FIRST.
+5. **Only escalate** to computational geometry algorithms (concave hull, alpha shapes, graph traversal) if the simple approach actually fails on the data
+
+Example: 13 disconnected polylines with 5–18 m gaps → don't reach for concave hull or planar graph traversal. Just extend each line 10 m from both endpoints, node at intersections, polygonize. Done.
 
 ## Discovery / Catalog
 
@@ -82,6 +98,11 @@ All common functions importable from top level: `from gis_utils import ...`
 - `distance_to_nearest(gdf, reference_gdf, column_name)` — add min distance to nearest reference feature
 - `points_with_buffers(data, crs, *, buffer_col, buffer_factor)` — create points from coordinate dicts + optional buffer union
 
+### Line-to-Polygon Operations
+- `extend_line(line, distance, *, start=True, end=True)` — extend LineString from one or both endpoints in line direction
+- `snap_endpoints(lines, tolerance)` — snap nearby LineString endpoints using cKDTree clustering
+- `lines_to_polygon(lines, *, extend=0, snap_tolerance=0, mode="outer")` — pipeline: snap + extend + node + polygonize + union. `mode="outer"` returns exterior only, `mode="all"` returns union of all cells
+
 ### Reporting
 - `markdown_table(headers, rows, align, number_format, max_col_width)` — fixed-width markdown table that aligns in raw view
 - `area_report(layers, *, intersect_with, category_gdf, category_col, crs)` — full markdown area report
@@ -131,3 +152,38 @@ All common functions importable from top level: `from gis_utils import ...`
 ### Workflow Runner
 - CLI: `gis-workflow run [project_dir]`, `gis-workflow run --dry-run`, `gis-workflow run --step "Name"`
 - Init: `gis-workflow init [project_dir]` — creates workflow.yaml, scripts/, CLAUDE.md
+
+### Templates
+Built-in workflow templates — reusable processing patterns invoked via `template:` in workflow.yaml. Templates run in-process (no subprocess), are faster than scripts, and encode proven conversion workflows.
+
+Available templates:
+- `dxf_extract` — extract DXF layers to GeoPackage. Params: `dxf`, `layers`, `crs`, `strip_zone`
+- `dxf_lines_to_polygon` — convert DXF lines to closed polygon via extend + polygonize. Params: `dxf`, `layer`, `crs`, `strip_zone`, `extend`, `snap_tolerance`, `mode`
+- `verification_dxf` — write original DXF lines + derived polygon to DXF for visual QA. Params: `dxf`, `layer`, `crs`, `strip_zone`, `polygon`
+
+Usage in workflow.yaml:
+```yaml
+- name: My Step
+  template: dxf_lines_to_polygon
+  params:
+    dxf: path/to/file.dxf
+    layer: LAYER_NAME
+    crs: "EPSG:25833"
+    strip_zone: true
+    extend: 10.0
+  output: output/result.gpkg
+```
+
+Discovery: `gis-workflow catalog --search template` or `from gis_utils.templates import list_templates`
+
+### Cookbook: DXF lines → polygon
+**When:** DXF has polylines that form a boundary but don't connect (gaps at endpoints)
+**Symptoms:** Layer has LineStrings, not closed Polygons. Endpoints are close but don't touch.
+**Steps:**
+1. `extract_dxf_layers()` → get LineStrings
+2. `strip_utm_zone_prefix()` if coordinates have 32/33 prefix
+3. `lines_to_polygon(lines, extend=10, snap_tolerance=1.0)`
+4. If result area is too small → user closes large gaps manually in AutoCAD → re-run
+5. Verification: write original lines + result to DXF for visual comparison
+
+Or use the `dxf_lines_to_polygon` template directly in workflow.yaml — no script needed.

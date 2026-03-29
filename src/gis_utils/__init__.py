@@ -23,13 +23,17 @@ from gis_utils.dxf.map_od import (
 )
 from gis_utils.geometry import (
     distance_to_nearest,
+    extend_line,
     find_column,
+    lines_to_polygon,
     load_and_union,
     make_valid_gdf,
     morphological_filter,
     points_with_buffers,
     repair_geometry,
     remove_inner_rings,
+    snap_endpoints,
+    strip_utm_zone_prefix,
     subtract_geometries,
     subtract_smaller_overlaps,
 )
@@ -76,10 +80,14 @@ __all__ = [
     "make_valid_gdf",
     "subtract_geometries",
     "subtract_smaller_overlaps",
+    "extend_line",
+    "snap_endpoints",
+    "lines_to_polygon",
     "load_and_union",
     "find_column",
     "morphological_filter",
     "repair_geometry",
+    "strip_utm_zone_prefix",
     "distance_to_nearest",
     "points_with_buffers",
     # Reporting

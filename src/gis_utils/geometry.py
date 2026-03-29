@@ -10,10 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import geopandas as gpd
-from shapely.geometry import MultiPolygon, Polygon
-from shapely.ops import unary_union
+from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.ops import polygonize, unary_union
 from shapely.validation import make_valid as _shapely_make_valid
+
+# UTM zone prefixes: zone 32 → 32xxxxxx, zone 33 → 33xxxxxx
+_KNOWN_ZONE_PREFIXES = {32, 33}
 
 
 def remove_inner_rings(geom) -> Any:
@@ -193,6 +197,192 @@ def subtract_smaller_overlaps(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     out["geometry"] = geoms
     out = out[out.geometry.notna() & ~out.geometry.is_empty].copy()
     return out.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Line geometry operations
+# ---------------------------------------------------------------------------
+
+
+def extend_line(
+    line: LineString,
+    distance: float,
+    *,
+    start: bool = True,
+    end: bool = True,
+) -> LineString:
+    """Extend a LineString from one or both endpoints in the direction of the line.
+
+    Args:
+        line: Input LineString.
+        distance: Extension distance (in CRS units, typically metres).
+        start: Extend from the start (first vertex) of the line.
+        end: Extend from the end (last vertex) of the line.
+
+    Returns:
+        New LineString with extended endpoint(s).
+    """
+    coords = list(line.coords)
+
+    if start and len(coords) >= 2:
+        dx = coords[0][0] - coords[1][0]
+        dy = coords[0][1] - coords[1][1]
+        d = np.sqrt(dx**2 + dy**2)
+        if d > 0:
+            coords = [
+                (coords[0][0] + dx / d * distance,
+                 coords[0][1] + dy / d * distance)
+            ] + coords
+
+    if end and len(coords) >= 2:
+        dx = coords[-1][0] - coords[-2][0]
+        dy = coords[-1][1] - coords[-2][1]
+        d = np.sqrt(dx**2 + dy**2)
+        if d > 0:
+            coords = coords + [
+                (coords[-1][0] + dx / d * distance,
+                 coords[-1][1] + dy / d * distance)
+            ]
+
+    return LineString(coords)
+
+
+def snap_endpoints(
+    lines: list[LineString],
+    tolerance: float,
+) -> list[LineString]:
+    """Snap LineString endpoints that are within tolerance of each other.
+
+    Clusters nearby endpoints and replaces them with the cluster centroid,
+    closing small gaps between nearly-connected lines.
+
+    Args:
+        lines: List of LineString geometries.
+        tolerance: Maximum distance (CRS units) for snapping endpoints together.
+
+    Returns:
+        New list of LineStrings with snapped endpoints.
+    """
+    from collections import defaultdict
+    from scipy.spatial import cKDTree
+
+    if not lines:
+        return []
+
+    # Collect all endpoints
+    endpoints = []
+    for line in lines:
+        c = list(line.coords)
+        endpoints.append(c[0])
+        endpoints.append(c[-1])
+
+    pts = np.array(endpoints)
+    tree = cKDTree(pts)
+    groups = tree.query_ball_tree(tree, r=tolerance)
+
+    # Union-find clustering
+    parent = list(range(len(pts)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        pi, pj = find(i), find(j)
+        if pi != pj:
+            parent[pi] = pj
+
+    for i, neighbors in enumerate(groups):
+        for j in neighbors:
+            union(i, j)
+
+    # Compute cluster centroids
+    clusters: dict[int, list[int]] = defaultdict(list)
+    for i in range(len(pts)):
+        clusters[find(i)].append(i)
+
+    snap_map: dict[tuple, tuple] = {}
+    for members in clusters.values():
+        if len(members) > 1:
+            centroid = tuple(pts[members].mean(axis=0))
+            for m in members:
+                snap_map[tuple(pts[m])] = centroid
+
+    # Rebuild lines with snapped endpoints
+    result = []
+    for line in lines:
+        coords = list(line.coords)
+        start = snap_map.get(coords[0], coords[0])
+        end = snap_map.get(coords[-1], coords[-1])
+        result.append(LineString([start] + coords[1:-1] + [end]))
+
+    return result
+
+
+def lines_to_polygon(
+    lines: list[LineString],
+    *,
+    extend: float = 0,
+    snap_tolerance: float = 0,
+    mode: str = "outer",
+) -> Polygon:
+    """Convert disconnected lines into a closed polygon.
+
+    Pipeline: snap endpoints → extend lines → node at intersections →
+    polygonize → union → take exterior ring.
+
+    Args:
+        lines: List of LineString geometries.
+        extend: Distance to extend each line from both endpoints (CRS units).
+            Set to 0 to skip extension.
+        snap_tolerance: Snap endpoints within this distance before extending.
+            Set to 0 to skip snapping.
+        mode: ``"outer"`` returns only the exterior ring (no holes).
+            ``"all"`` returns the union of all polygonized cells.
+
+    Returns:
+        Polygon formed from the line network.
+
+    Raises:
+        RuntimeError: If no closed polygons can be formed from the lines.
+    """
+    work = list(lines)
+
+    if snap_tolerance > 0:
+        work = snap_endpoints(work, snap_tolerance)
+
+    if extend > 0:
+        work = [extend_line(l, extend) for l in work]
+
+    # Node at intersections and polygonize
+    noded = unary_union(work)
+    polys = list(polygonize(noded))
+
+    if not polys:
+        raise RuntimeError(
+            "Could not form any polygons from lines — they may not "
+            "intersect even after extension"
+        )
+
+    union_poly = unary_union(polys)
+
+    if mode == "outer":
+        if union_poly.geom_type == "Polygon":
+            return Polygon(union_poly.exterior)
+        # MultiPolygon: fill holes in each part, re-union, take exterior
+        filled = unary_union(
+            [Polygon(p.exterior) for p in union_poly.geoms]
+        )
+        if filled.geom_type == "Polygon":
+            return Polygon(filled.exterior)
+        return Polygon(max(filled.geoms, key=lambda g: g.area).exterior)
+
+    # mode == "all"
+    if union_poly.geom_type == "Polygon":
+        return Polygon(union_poly.exterior)
+    return unary_union([Polygon(p.exterior) for p in union_poly.geoms])
 
 
 def load_and_union(
@@ -409,6 +599,58 @@ def points_with_buffers(
     buffer_union = unary_union(buffers)
     buffer_gdf = gpd.GeoDataFrame(geometry=[buffer_union], crs=crs)
     return points_gdf, buffer_gdf
+
+
+def strip_utm_zone_prefix(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Strip the leading UTM zone digit(s) from X coordinates in a GeoDataFrame.
+
+    CAD/DXF files sometimes store UTM coordinates with the zone number prefixed
+    to the easting (e.g. 33266881 instead of 266881 for zone 33, or 32548000
+    instead of 548000 for zone 32). This function detects and removes that prefix.
+
+    Auto-detects the zone prefix (32 or 33) from the data. Raises ValueError
+    if X coordinates don't have a known zone prefix.
+
+    Args:
+        gdf: GeoDataFrame with projected UTM coordinates.
+
+    Returns:
+        Copy of gdf with corrected X coordinates.
+    """
+    if gdf.empty:
+        return gdf.copy()
+
+    sample_x = gdf.geometry.iloc[0].centroid.x
+    prefix = int(str(int(sample_x))[:2])
+    if prefix not in _KNOWN_ZONE_PREFIXES:
+        raise ValueError(
+            f"X coordinate {sample_x:.0f} does not start with a known UTM zone "
+            f"prefix ({_KNOWN_ZONE_PREFIXES}). No stripping needed?"
+        )
+
+    shift = prefix * 1_000_000
+    out = gdf.copy()
+    out["geometry"] = out.geometry.apply(
+        lambda geom: _shift_x(geom, -shift)
+    )
+    print(
+        f"[geometry] Stripped zone prefix {prefix} from X coordinates "
+        f"(shift: -{shift})",
+        flush=True,
+    )
+    return out
+
+
+def _shift_x(geom, dx: float):
+    """Shift all X coordinates of a geometry by dx."""
+    from shapely import transform as _transform
+
+    def _apply(coords):
+        coords = np.array(coords, dtype=float)
+        coords[:, 0] += dx
+        return coords
+
+    return _transform(geom, _apply)
 
 
 # ---------------------------------------------------------------------------

@@ -122,6 +122,10 @@ def should_skip(step: dict, project_dir: Path) -> bool:
 
 def run_step(step: dict, project_dir: Path, conda_env: str | None = None) -> bool:
     """Execute a single workflow step. Returns True on success."""
+    # Template steps: run built-in processing templates
+    if step.get("template"):
+        return _run_template_step(step, project_dir)
+
     # Recipe steps: run directly via run_recipe()
     if step.get("recipe"):
         return _run_recipe_step(step, project_dir)
@@ -187,6 +191,30 @@ def _resolve_extent(step: dict, project_dir: Path) -> dict:
         else:
             kwargs["input_boundary"] = input_path
     return kwargs
+
+
+def _run_template_step(step: dict, project_dir: Path) -> bool:
+    """Execute a template-based workflow step."""
+    from gis_utils.templates import get_template
+
+    template_name = step["template"]
+    params = step.get("params", {})
+    output = step.get("output")
+    output_path = project_dir / output if output else None
+
+    try:
+        handler = get_template(template_name)
+    except KeyError as e:
+        print(f"  [ERROR] {e}")
+        return False
+
+    try:
+        if output_path:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        return handler(params, project_dir, output_path)
+    except Exception as e:
+        print(f"  [ERROR] Template '{template_name}' failed: {e}")
+        return False
 
 
 def _run_recipe_step(step: dict, project_dir: Path) -> bool:

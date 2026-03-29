@@ -24,6 +24,7 @@ _MODULES = [
     "gis_utils.dxf.document",  # DXF document creation
     "gis_utils.dxf.map_od",    # AutoCAD Map Object Data
     "gis_utils.runner",    # workflow runner
+    "gis_utils.templates", # built-in workflow templates
 ]
 
 _CLI_COMMANDS = [
@@ -204,6 +205,7 @@ def catalog(
     # Discover
     functions = _discover_functions(include_private=include_private)
     recipes = _discover_recipes(project_dir=proj)
+    templates = _discover_templates()
     cli = list(_CLI_COMMANDS)
 
     # Filter
@@ -215,11 +217,22 @@ def catalog(
                 filtered_funcs[mod] = matched
         functions = filtered_funcs
         recipes = [r for r in recipes if _matches(r, search)]
+        templates = [t for t in templates if _matches(t, search)]
         cli = [c for c in cli if _matches(c, search)]
 
     return {
         "version": ver,
         "functions": functions,
         "recipes": recipes,
+        "templates": templates,
         "cli": cli,
     }
+
+
+def _discover_templates() -> list[dict[str, Any]]:
+    """List all registered workflow templates."""
+    try:
+        from gis_utils.templates import list_templates
+        return list_templates()
+    except ImportError:
+        return []
