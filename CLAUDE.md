@@ -159,10 +159,15 @@ All common functions importable from top level: `from gis_utils import ...`
 ### Templates
 Built-in workflow templates — reusable processing patterns invoked via `template:` in workflow.yaml. Templates run in-process (no subprocess), are faster than scripts, and encode proven conversion workflows.
 
+Templates live in `src/gis_utils/templates/`, one file per template. Each file has full documentation (when to use, parameters, workflow.yaml example).
+
 Available templates:
 - `dxf_extract` — extract DXF layers to GeoPackage. Params: `dxf`, `layers`, `crs`, `strip_zone`
 - `dxf_lines_to_polygon` — convert DXF lines to closed polygon via extend + polygonize. Params: `dxf`, `layer`, `crs`, `strip_zone`, `extend`, `snap_tolerance`, `mode`
 - `verification_dxf` — write original DXF lines + derived polygon to DXF for visual QA. Params: `dxf`, `layer`, `crs`, `strip_zone`, `polygon`
+- `distance_lines_to_nearest` — create LineStrings from target to nearest reference features, with distance attributes. Style as arrows in QGIS. Params: `target`, `references` (list with `file`, `name_col`, `type`), `crs`, `extent`
+- `point_buffer_union` — buffer points by attribute × factor, union into single polygon. Params: `input`, `crs`, `buffer_col`, `buffer_factor`, `default_buffer`
+- `concentric_point_buffers` — create concentric buffer rings per point by category (e.g. BNatSchG zones). Params: `input`, `crs`, `category_col`, `zones` (list with `name`, `radius_col`), `lookup_csv`, `lookup_key`
 
 Usage in workflow.yaml:
 ```yaml
