@@ -24,6 +24,13 @@ When producing GeoDataFrame outputs, always explode MultiPolygons into individua
 
 This library is in alpha. Do not add backward-compatibility shims, deprecated aliases, re-exports of renamed symbols, or any code whose sole purpose is keeping old callers working. When something changes, just change it.
 
+### Project context
+
+When starting work in a GIS project:
+1. Read `workflow.yaml` to understand the pipeline, CRS, and data sources
+2. If CRS is not apparent from the workflow, ask the user before writing any code
+3. Check existing scripts in `scripts/` for conventions used in this project
+
 ### Discovery before coding
 
 Before writing code, use the `gis-utils` MCP tools to discover available functions:

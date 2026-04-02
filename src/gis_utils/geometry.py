@@ -10,6 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import math
+
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import LineString, MultiPolygon, Polygon
@@ -531,6 +533,142 @@ def distance_to_nearest(
         distances.append(round(d, 1))
     result[column_name] = distances
     return result
+
+
+# ---------------------------------------------------------------------------
+# Direction classification
+# ---------------------------------------------------------------------------
+
+# 8-zone labels ordered by angle (starting at east = 0°, going counter-clockwise).
+# Each zone is 45° wide, centered on its axis.
+_DIRECTIONS_8 = [
+    "right",       #    0°: -22.5° to  +22.5°
+    "up-right",    #   45°: +22.5° to  +67.5°
+    "up",          #   90°: +67.5° to +112.5°
+    "up-left",     #  135°: +112.5° to +157.5°
+    "left",        #  180°: +157.5° to +202.5° (i.e. |angle| >= 157.5°)
+    "down-left",   # -135°: -157.5° to -112.5°
+    "down",        #  -90°: -112.5° to  -67.5°
+    "down-right",  #  -45°:  -67.5° to  -22.5°
+]
+
+# 4-zone labels: same order, each zone is 90° wide.
+_DIRECTIONS_4 = ["right", "up", "left", "down"]
+
+# Map each 4-zone name to which 8-zone names it contains.
+_ZONES_4_TO_8 = {
+    "right": {"right", "up-right", "down-right"},
+    "up": {"up", "up-right", "up-left"},
+    "left": {"left", "up-left", "down-left"},
+    "down": {"down", "down-right", "down-left"},
+}
+
+
+def classify_direction(dx: float, dy: float, *, zones: int = 4) -> str:
+    """Classify a 2D vector into a direction zone.
+
+    Args:
+        dx: X component of the vector (positive = east).
+        dy: Y component of the vector (positive = north).
+        zones: Number of zones — ``4`` for cardinal directions (right, up,
+            left, down; 90° each) or ``8`` to include diagonals (up-right,
+            up-left, down-right, down-left; 45° each).
+
+    Returns:
+        Direction label. With ``zones=4``: one of ``"right"``, ``"up"``,
+        ``"left"``, ``"down"``. With ``zones=8``: also ``"up-right"``,
+        ``"up-left"``, ``"down-right"``, ``"down-left"``.
+
+    Raises:
+        ValueError: If dx and dy are both zero, or zones is not 4 or 8.
+    """
+    if dx == 0 and dy == 0:
+        raise ValueError("Cannot classify direction of a zero-length vector")
+    if zones not in (4, 8):
+        raise ValueError(f"zones must be 4 or 8, got {zones}")
+
+    angle = math.atan2(dy, dx)  # radians, -pi to +pi
+    n = zones
+    sector_size = 2 * math.pi / n
+    # Shift angle so sector 0 ("right") is centered at 0
+    index = int((angle + sector_size / 2) / sector_size) % n
+    labels = _DIRECTIONS_8 if zones == 8 else _DIRECTIONS_4
+    return labels[index]
+
+
+def filter_lines_by_direction(
+    gdf: gpd.GeoDataFrame,
+    directions: str | list[str],
+    *,
+    zones: int = 4,
+    select: str = "shortest",
+    min_length: float = 0.1,
+) -> gpd.GeoDataFrame:
+    """Filter LineStrings by their direction zone, optionally picking one per zone.
+
+    Each line's direction is determined by the vector from its first to its
+    last coordinate. Lines shorter than *min_length* are excluded.
+
+    Args:
+        gdf: GeoDataFrame with LineString geometries.
+        directions: One or more direction names to keep. Valid names depend
+            on *zones*: with ``zones=4`` use ``"right"``, ``"up"``, ``"left"``,
+            ``"down"``; with ``zones=8`` also ``"up-right"`` etc.
+            A 4-zone name used with ``zones=8`` matches the corresponding
+            three 8-zone sectors (e.g. ``"right"`` matches ``"right"``,
+            ``"up-right"``, ``"down-right"``).
+        zones: ``4`` or ``8`` — passed to :func:`classify_direction`.
+        select: ``"shortest"`` returns only the shortest line per requested
+            direction. ``"all"`` returns every line in the requested zones.
+        min_length: Minimum line length (CRS units) to consider.
+
+    Returns:
+        Filtered GeoDataFrame. When *select* is ``"shortest"``, contains at
+        most one feature per requested direction.
+    """
+    if isinstance(directions, str):
+        directions = [directions]
+
+    valid_names = set(_DIRECTIONS_8 if zones == 8 else _DIRECTIONS_4)
+    # Expand 4-zone names when using 8 zones
+    resolved: set[str] = set()
+    for d in directions:
+        if d in valid_names:
+            resolved.add(d)
+        elif zones == 8 and d in _ZONES_4_TO_8:
+            resolved.update(_ZONES_4_TO_8[d])
+        else:
+            raise ValueError(
+                f"Unknown direction {d!r} for zones={zones}, "
+                f"valid: {sorted(valid_names)}"
+            )
+
+    # Classify each line
+    records = []
+    for idx, row in gdf.iterrows():
+        geom = row.geometry
+        if geom is None or geom.is_empty or geom.length < min_length:
+            continue
+        c0, c1 = geom.coords[0], geom.coords[-1]
+        d = classify_direction(c1[0] - c0[0], c1[1] - c0[1], zones=zones)
+        if d in resolved:
+            records.append((idx, d, geom.length))
+
+    if not records:
+        return gpd.GeoDataFrame(columns=gdf.columns, crs=gdf.crs)
+
+    if select == "all":
+        keep = [idx for idx, _, _ in records]
+    elif select == "shortest":
+        best: dict[str, tuple] = {}
+        for idx, d, length in records:
+            if d not in best or length < best[d][1]:
+                best[d] = (idx, length)
+        keep = [idx for idx, _ in best.values()]
+    else:
+        raise ValueError(f"select must be 'shortest' or 'all', got {select!r}")
+
+    return gdf.loc[keep].reset_index(drop=True)
 
 
 def points_with_buffers(

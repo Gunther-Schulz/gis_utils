@@ -22,8 +22,10 @@ from gis_utils.dxf.map_od import (
     get_table_handle_by_name,
 )
 from gis_utils.geometry import (
+    classify_direction,
     distance_to_nearest,
     extend_line,
+    filter_lines_by_direction,
     find_column,
     lines_to_polygon,
     load_and_union,
@@ -89,6 +91,8 @@ __all__ = [
     "repair_geometry",
     "strip_utm_zone_prefix",
     "distance_to_nearest",
+    "classify_direction",
+    "filter_lines_by_direction",
     "points_with_buffers",
     # Reporting
     "area_report",

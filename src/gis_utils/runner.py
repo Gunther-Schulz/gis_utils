@@ -381,30 +381,9 @@ steps:
     #   - Other step name
 """
 
-CLAUDE_MD_CONTENT = """\
-# {name}
-
-GIS project using `gis_utils` (conda env: `gis`).
-
-## Project notes
-
-- CRS:
-- Data sources:
-- Coordinate quirks:
-
-## gis_utils plugin
-
-The `gis-utils` Claude Code plugin provides MCP tools for API discovery
-and skills for GIS safety, geometry workflows, workflow authoring, and
-library extraction. Use the MCP tools instead of hardcoded API references.
-
-Scripts in `scripts/`, workflow in `workflow.yaml`.
-"""
-
-
 def init_project(project_dir: str | Path) -> None:
     """
-    Initialize a GIS project with workflow.yaml, scripts/, and CLAUDE.md.
+    Initialize a GIS project with workflow.yaml and scripts/.
 
     Args:
         project_dir: Path to project directory.
@@ -425,15 +404,9 @@ def init_project(project_dir: str | Path) -> None:
         wf_path.write_text(WORKFLOW_TEMPLATE.format(name=name), encoding="utf-8")
         print(f"  workflow.yaml — created")
 
-    # Create CLAUDE.md (don't overwrite)
-    claude_path = project_dir / "CLAUDE.md"
-    if claude_path.exists():
-        print(f"  CLAUDE.md — already exists (skipped)")
-    else:
-        claude_path.write_text(CLAUDE_MD_CONTENT.format(name=name), encoding="utf-8")
-        print(f"  CLAUDE.md — created")
-
     print(f"\nProject initialized: {name}")
+    print(f"\nGIS skills and MCP tools provided by the gis-utils Claude Code plugin.")
+    print(f"Install: claude plugin marketplace add Gunther-Schulz/gis_utils")
 
 
 def _run_check_recipes(recipe_name: str | None, project_dir: str) -> None:
