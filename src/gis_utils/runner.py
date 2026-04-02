@@ -384,74 +384,21 @@ steps:
 CLAUDE_MD_CONTENT = """\
 # {name}
 
+GIS project using `gis_utils` (conda env: `gis`).
+
 ## Project notes
-<!-- Add project-specific context here: CRS, coordinate quirks, data sources, etc. -->
 
-## Environment
-- Conda env: `gis`
-- Workflow: `gis-workflow run` (run all), `gis-workflow run --dry-run` (plan), `gis-workflow run --step "Name"` (single step)
-- Scripts in `scripts/`, old scripts in `deprecated_scripts/` (frozen, do not modify)
+- CRS:
+- Data sources:
+- Coordinate quirks:
 
-## Working on this project
-When the user asks for a GIS task in this project:
-1. **Read `workflow.yaml`** first to understand existing pipeline steps and dependencies
-2. **Decide implementation approach** — always ask yourself before coding:
-   - **Recipe step?** If the task is "get data from source X" and a recipe exists (or should be created), use a recipe step directly in workflow.yaml. No script needed.
-   - **Script?** If the task combines project-specific inputs, does custom logic, or orchestrates multiple gis_utils calls, write a script in `scripts/`.
-   - **Library addition?** If the logic is reusable across projects, add it to `gis_utils` first, then use it in a script or recipe.
-3. **Update `workflow.yaml`** with new steps, correct dependencies and run modes (`auto` or `always`)
-4. **Test with** `gis-workflow run --dry-run` before running
-5. **Always run the full workflow** (`gis-workflow run`) so all outputs are up to date. If you use `--step` during development, explicitly tell the user that only a subset ran and other outputs may be stale.
+## gis_utils plugin
 
-### What goes WHERE
-- **Recipe step in workflow.yaml** (no script): downloading/fetching data from WMS, WFS, OSM sources. Use `recipe:` directly in the step definition.
-- **`scripts/` (project-specific)**: project paths, project data, orchestration that calls gis_utils functions, reports, analysis, project-specific business logic
-- **`gis_utils` library** (shared): geometry operations, DXF tools, data format conversions, reporting helpers — anything another project might reuse. Source: run `pip show gis-utils` to find editable location (likely ~/dev/Gunther-Schulz/gis_utils). Read its CLAUDE.md for the full API.
+The `gis-utils` Claude Code plugin provides MCP tools for API discovery
+and skills for GIS safety, geometry workflows, workflow authoring, and
+library extraction. Use the MCP tools instead of hardcoded API references.
 
-## gis_utils library
-This project uses `gis_utils` (installed as editable pip package).
-ALWAYS use it instead of writing equivalent code from scratch.
-
-### Rules
-- **Markdown tables:** ALWAYS use `from gis_utils import markdown_table` — fixed-width columns that align in raw markdown. NEVER use tabulate, pandas .to_markdown(), or manual formatting.
-- **DXF extraction:** use `extract_dxf_layers()` / `extract_dxf_circles()` — handles bulge/arc interpolation, block recursion, all entity types. NEVER iterate DXF entities manually.
-- **DXF creation:** use `new_dxf_document()` and `ensure_layer()` for CAD-compatible headers.
-- **DXF conversion:** use `shapefile_to_dxf()` for SHP→DXF with optional Map OD and labels.
-- **Geometry repair:** use `repair_geometry(geom)` for single geometries (handles GeometryCollection edge cases), `make_valid_gdf(gdf)` for GeoDataFrames. NEVER use shapely `make_valid()` directly — it can return GeometryCollection which silently breaks downstream operations.
-- **Removing holes:** use `remove_inner_rings()`.
-- **Set difference:** use `subtract_geometries()`.
-- **Overlap removal:** use `subtract_smaller_overlaps()`.
-- **Polygon cleanup:** use `morphological_filter()` for buffer-dissolve-buffer filtering.
-- **Distance calc:** use `distance_to_nearest()` to add min-distance column.
-- **Points + buffers:** use `points_with_buffers()` to create point GDF with buffer union.
-- **Area reports:** use `area_report()`, `intersection_areas()`, `area_by_category()`.
-- **Load + union:** use `load_and_union()` to avoid double-counting overlapping polygons.
-- **Find columns:** use `find_column(gdf, candidates)` for varying column name conventions.
-- **OSM data:** use `from gis_utils.osm import download_osm_polygons, bbox_from_shapefile`.
-- **WMS vectorization:** use `from gis_utils.wms import run` — supports `recipe="name"` for predefined sources.
-- **Recipes:** use `list_recipes(search="keyword")` to find available source recipes, `load_recipe(name)` to load one.
-
-### WMS/WFS Recipes
-- `from gis_utils.wms import run` accepts `recipe="name"` to use a predefined source recipe
-- `list_recipes(search="keyword")` to find available recipes
-- Recipes live in `sources/` (project-local) or ship with gis_utils (defaults)
-- When the user wants to work with a WMS/WFS source that has no recipe yet:
-  1. Query GetCapabilities to discover available layers
-  2. Sample GetFeatureInfo at multiple points to discover attribute fields and values
-  3. Discuss naming and description with the user
-  4. Create a recipe YAML in the project's `sources/` directory
-  5. Research and populate attribute value mappings from official documentation
-
-### Full API
-Run `pip show gis-utils` to find the editable source location, then read CLAUDE.md there.
-
-### Editing gis_utils
-gis_utils is installed as `pip install -e` (editable). Edits to its source files take effect immediately.
-If you add or modify gis_utils code:
-1. Find the source: `pip show gis-utils` → "Editable project location" field
-2. Edit files there directly
-3. **Commit and push** changes in that repo (it's a separate git repo from this project)
-4. Update its CLAUDE.md if you added new public functions
+Scripts in `scripts/`, workflow in `workflow.yaml`.
 """
 
 
