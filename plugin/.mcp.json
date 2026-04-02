@@ -1,0 +1,6 @@
+{
+  "gis-utils": {
+    "command": "/home/g/.conda/envs/gis/bin/python3",
+    "args": ["/home/g/dev/Gunther-Schulz/gis_utils/mcp/server.py"]
+  }
+}

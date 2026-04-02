@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gis-utils",
+  "description": "GIS/CAD utility library discovery and safety skills",
+  "owner": {
+    "name": "Gunther Schulz"
+  },
+  "plugins": [
+    {
+      "name": "gis-utils",
+      "description": "MCP tools for discovering gis_utils API, recipes, and templates, plus safety skills for GIS/CAD development.",
+      "source": "./plugin"
+    }
+  ]
+}
