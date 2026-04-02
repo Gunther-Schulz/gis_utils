@@ -18,6 +18,34 @@ conda activate gis
 pip install -e ~/dev/Gunther-Schulz/gis_utils
 ```
 
+### Claude Code plugin
+
+The plugin provides MCP tools for API discovery and safety skills for GIS development:
+
+```bash
+claude plugin marketplace add Gunther-Schulz/gis_utils
+claude plugin install gis-utils@gis-utils
+```
+
+Restart Claude Code or run `/reload-plugins` to activate.
+
+**MCP tools** (live introspection, stays in sync with installed library):
+
+| Tool | What it does |
+|------|-------------|
+| `catalog` | Search functions, recipes, templates, CLI commands |
+| `list_recipes` | Discover available data source recipes (WFS, WMS, ALKIS, OSM) |
+| `list_templates` | Discover workflow templates for workflow.yaml |
+| `check_recipe_layers` | Validate multi-layer recipes against live WFS |
+| `get_function_help` | Get full docstring and signature for any function |
+
+**Skills** (auto-discovered, loaded per turn):
+
+| Skill | Triggers on |
+|-------|-------------|
+| `gis-utils:gis-safety` | Any code writing in GIS projects — CRS rules, dangerous defaults, output conventions |
+| `gis-utils:geometry-workflow` | Geometry tasks — enforces data analysis before coding |
+
 ## Starting a new project
 
 ```bash
@@ -81,13 +109,11 @@ All common functions importable from top level: `from gis_utils import ...`
 - `distance_to_nearest()` — min distance to reference features
 - `points_with_buffers()` — create points + buffer union from coordinate data
 - `load_and_union()` — load shapefile, union all geometries
-- `find_column()` — find column by name variants
 
 ### Reporting
 - `markdown_table()` — fixed-width markdown table (aligns in raw view)
 - `area_report()` — full markdown area report with optional parcel intersection
 - `area_by_category()` — intersection areas grouped by category
-- `intersection_areas()` — intersection area per parcel
 
 ### Specialized (import from submodule)
 - `from gis_utils.osm import download_osm_polygons` — OSM Overpass API
@@ -96,7 +122,34 @@ All common functions importable from top level: `from gis_utils import ...`
 
 ## Full API reference
 
-See [CLAUDE.md](CLAUDE.md) for the complete API with signatures.
+See [CLAUDE.md](CLAUDE.md) for the complete API with signatures, or use the MCP `catalog` tool for live discovery.
+
+## Development
+
+Plugin files:
+
+```
+plugin/
+├── .claude-plugin/
+│   └── plugin.json
+├── .mcp.json                          # MCP server config
+└── skills/
+    ├── gis-safety/SKILL.md
+    └── geometry-workflow/SKILL.md
+
+mcp/
+└── server.py                          # FastMCP server wrapping catalog/recipes/templates
+```
+
+After editing skills or the MCP server, push and update:
+
+```bash
+git add -A && git commit -m "..." && git push
+claude plugin marketplace update gis-utils
+claude plugin update gis-utils@gis-utils
+```
+
+Then `/reload-plugins` or restart Claude Code.
 
 ## License
 
