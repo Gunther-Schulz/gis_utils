@@ -45,6 +45,7 @@ from gis_utils.reporting import (
     intersection_areas,
 )
 from gis_utils.alkis import find_flurstuecke
+from gis_utils.atkis import fetch_classified_features
 from gis_utils.catalog import catalog
 from gis_utils.maps import quick_map
 from gis_utils.recipes import (
@@ -109,6 +110,8 @@ __all__ = [
     "apply_attribute_mappings",
     # ALKIS convenience
     "find_flurstuecke",
+    # ATKIS classification cascade
+    "fetch_classified_features",
     # Discovery
     "catalog",
     # Map rendering

@@ -30,6 +30,12 @@ class Recipe:
     hooks: str | None = None
     exclude_tags: dict[str, str] = field(default_factory=dict)
     layers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    classification_via: dict[str, Any] = field(default_factory=dict)
+    """Optional cascade descriptor — declares how to classify polygon
+    features via a related guide layer (and optionally a parent classifier
+    entity).  See gis_utils.atkis.fetch_classified_features for the schema.
+    Set on a layer config (per layer) and merged into the per-layer recipe
+    by ``get_layer_recipe``.  Activated when ``filter:`` is also given."""
     _source_path: Path | None = field(default=None, repr=False)
 
     @property
@@ -70,6 +76,9 @@ class Recipe:
             post_processing=layer_cfg.get("post_processing", self.post_processing),
             hooks=layer_cfg.get("hooks", self.hooks),
             exclude_tags=layer_cfg.get("exclude_tags", {}),
+            classification_via=layer_cfg.get(
+                "classification_via", self.classification_via
+            ),
             _source_path=self._source_path,
         )
 
@@ -115,6 +124,7 @@ def _parse_recipe(data: dict, source_path: Path | None = None) -> Recipe:
         hooks=data.get("hooks"),
         exclude_tags=data.get("exclude_tags", {}),
         layers=data.get("layers", {}),
+        classification_via=data.get("classification_via", {}),
         _source_path=source_path,
     )
 
@@ -386,7 +396,25 @@ def run_recipe(
     conn = resolve_connection(_recipe)
     conn_type = conn.get("type", "wms")
 
-    if conn_type == "osm":
+    # Dispatch to ATKIS classification cascade when both `classification_via`
+    # is declared on the layer recipe AND a `filter` kwarg is given.
+    classification_via = _recipe.classification_via or {}
+    user_filter = kwargs.pop("filter", None) if classification_via else None
+    if classification_via and user_filter:
+        # Caller can override CRS via kwargs; otherwise fall back to recipe's.
+        _crs = kwargs.pop("crs", None) or conn.get("crs")
+        gdf = _run_classified_atkis_recipe(
+            _recipe,
+            classification=user_filter,
+            classification_via=classification_via,
+            wfs_url=conn.get("wfs_url", ""),
+            crs=_crs,
+            extent=extent,
+            input_boundary=input_boundary,
+            output_path=output_path,
+            **kwargs,
+        )
+    elif conn_type == "osm":
         gdf = _run_osm_recipe(
             _recipe, input_boundary=input_boundary, extent=extent,
             output_path=output_path, recipe_dir=recipe_dir, **kwargs,
@@ -404,7 +432,7 @@ def run_recipe(
             "recipe": _recipe,
             "recipe_dir": recipe_dir,
         }
-        wfs_kwargs.update(kwargs)  # caller overrides recipe defaults
+        wfs_kwargs.update(kwargs)  # caller overrides recipe defaults (incl. filter)
         gdf = download(**wfs_kwargs)
     else:
         from gis_utils.wms import run
@@ -538,6 +566,84 @@ def check_recipe_layers(
     new = sorted(remote_layers - recipe_wfs_layers)
 
     return {"ok": ok, "missing": missing, "new": new}
+
+
+def _run_classified_atkis_recipe(
+    recipe: Recipe,
+    *,
+    classification: dict[str, Any],
+    classification_via: dict[str, Any],
+    wfs_url: str,
+    crs: str | None,
+    extent: tuple[float, float, float, float] | None,
+    input_boundary: "Path | str | None",
+    output_path: "Path | str | None",
+    no_cache: bool = False,
+    **_unused,
+) -> "gpd.GeoDataFrame":
+    """Resolve ATKIS classification cascade and return matching polygons.
+
+    Reads the ``classification_via`` block from the layer recipe::
+
+        classification_via:
+          guide_layer: <wfs layer name>
+          spatial_buffer_m: <metres>
+          # Optional cascade through a parent classifier:
+          guide_to_classifier:
+            link_attr: <name of xlink attribute on guide>
+            classifier_layer: <wfs layer name with classification attrs>
+
+    The ``target_layer`` is taken from the recipe's connection (the WFS layer
+    of the alias).
+    """
+    from gis_utils.atkis import fetch_classified_features
+
+    if not crs:
+        raise ValueError(
+            f"Recipe '{recipe.name}': crs is required for classified ATKIS "
+            f"retrieval (no silent defaults)."
+        )
+
+    target_layer = recipe.connection.get("layer", "")
+    if not target_layer:
+        raise ValueError(
+            f"Recipe '{recipe.name}': target layer not resolved from connection."
+        )
+
+    guide_layer = classification_via.get("guide_layer")
+    if not guide_layer:
+        raise ValueError(
+            f"Recipe '{recipe.name}': classification_via.guide_layer missing."
+        )
+    spatial_buffer_m = float(classification_via.get("spatial_buffer_m", 30))
+
+    cascade = classification_via.get("guide_to_classifier") or {}
+    classifier_layer = cascade.get("classifier_layer") if cascade else None
+    classifier_link_attr = cascade.get("link_attr") if cascade else None
+
+    # Resolve extent from input_boundary if needed
+    if extent is None and input_boundary is not None:
+        import geopandas as gpd
+        b = gpd.read_file(input_boundary).to_crs(crs).total_bounds
+        extent = (float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+    if extent is None:
+        raise ValueError(
+            f"Recipe '{recipe.name}': extent or input_boundary is required."
+        )
+
+    return fetch_classified_features(
+        wfs_url,
+        target_layer=target_layer,
+        guide_layer=guide_layer,
+        extent=extent,
+        crs=crs,
+        classification=classification,
+        classifier_layer=classifier_layer,
+        classifier_link_attr=classifier_link_attr,
+        spatial_buffer_m=spatial_buffer_m,
+        no_cache=no_cache,
+        output_path=output_path,
+    )
 
 
 def _run_osm_recipe(

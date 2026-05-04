@@ -1,0 +1,74 @@
+name: mv_atkis
+description: "ATKIS Basis-DLM Mecklenburg-Vorpommern — topographisches Landschaftsmodell. Liefert Verkehrsflächen (Straße/Bahn) MIT Klassifizierung (widmung/bezeichnung), die in ALKIS-MV nicht populiert sind. Lagegenauigkeit ATKIS Basis-DLM ca. ±3 m. © GeoBasis-DE/M-V."
+tags: [ATKIS, DLM, Basis-DLM, MV, mecklenburg-vorpommern, verkehr, autobahn, bundesstraße, straße, bahn, schiene, gewässer, topographie]
+
+connection:
+  type: wfs
+  url: "https://www.geodaten-mv.de/dienste/atkis_bdlm_wfs_sf"
+  crs: "EPSG:25833"
+
+layers:
+  # --- Straße ---
+  strasse:
+    wfs_layer: "adv:AX_Strasse"
+    title: "Straße (ZUSO mit Widmung+Bezeichnung; keine eigene Geometrie)"
+    tags: [straße, klassifizierung, widmung, zuso]
+    attribute_mappings:
+      widmung:
+        "1301": "Bundesautobahn"
+        "1303": "Bundesstraße"
+        "1305": "Landesstraße"
+        "1306": "Kreisstraße"
+        "1307": "Gemeindestraße"
+        "1308": "Sonstige öffentliche Straße"
+        "9997": "Sonstige"
+
+  strassenachse:
+    wfs_layer: "adv:AX_Strassenachse"
+    title: "Straßenachse (Linie der Fahrbahnachse)"
+    tags: [straße, achse, linie]
+
+  strassenverkehrsflaeche:
+    wfs_layer: "adv:AX_Strassenverkehr"
+    title: "Straßenverkehrsfläche (Polygon der Fahrbahn inkl. Standstreifen)"
+    tags: [straße, autobahn, verkehrsfläche, fahrbahn, polygon]
+    # Klassifizierungs-Cascade — von Polygon über Achse zur Klassifizierung:
+    #   AX_Strassenverkehr (geom)  ↔ spatial proximity ↔  AX_Strassenachse (line)
+    #                                                          ↓ istTeilVon (xlink)
+    #                                                     AX_Strasse (widmung + bezeichnung)
+    classification_via:
+      guide_layer: "adv:AX_Strassenachse"
+      guide_to_classifier:
+        link_attr: istTeilVon
+        classifier_layer: "adv:AX_Strasse"
+      spatial_buffer_m: 30
+      filterable_attrs: [widmung, bezeichnung, name]
+
+  # --- Bahn ---
+  bahnstrecke:
+    wfs_layer: "adv:AX_Bahnstrecke"
+    title: "Bahnstrecke (Linie mit Bahnkategorie+Bezeichnung)"
+    tags: [bahn, schiene, strecke, linie]
+    attribute_mappings:
+      bahnkategorie:
+        "1100": "Eisenbahn"
+        "1101": "Hauptbahn"
+        "1102": "Nebenbahn"
+        "1103": "S-Bahn"
+        "1104": "Güterbahn"
+        "1105": "Strecke des Personenfern-/Hochgeschwindigkeitsverkehrs"
+        "1200": "Stadtschnellbahn / U-Bahn"
+        "1201": "Straßenbahn"
+        "1300": "Schmalspurbahn / Museumsbahn"
+        "1400": "Magnetschwebebahn"
+
+  bahnverkehrsflaeche:
+    wfs_layer: "adv:AX_Bahnverkehr"
+    title: "Bahnverkehrsfläche (Polygon der Gleisanlage)"
+    tags: [bahn, schiene, verkehrsfläche, polygon]
+    # Klassifizierung liegt direkt auf AX_Bahnstrecke (kein ZUSO-Zwischenschritt
+    # wie bei AX_Strasse). Cascade: Polygon ↔ spatial ↔ Bahnstrecke (filterbar).
+    classification_via:
+      guide_layer: "adv:AX_Bahnstrecke"
+      spatial_buffer_m: 20
+      filterable_attrs: [bahnkategorie, bezeichnung, name]
