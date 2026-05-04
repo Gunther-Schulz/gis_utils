@@ -25,8 +25,20 @@ layers:
 
   strassenachse:
     wfs_layer: "adv:AX_Strassenachse"
-    title: "Straßenachse (Linie der Fahrbahnachse)"
-    tags: [straße, achse, linie]
+    title: "Straßenachse (Linie der Fahrbahnachse) — gefiltert nach Widmung+Bezeichnung"
+    tags: [straße, achse, linie, autobahn, klassifizierung]
+    # Guide-only Cascade — die Achslinie selbst ist das Ziel, kein Schnitt mit
+    # einem Polygon-Layer.  Nützlich wenn die Polygon-Geometrie unzuverlässig
+    # ist (häufig in MV ATKIS bei AX_Strassenverkehr) und stattdessen die
+    # Mittelachse der BAB/Bundesstraße + gemessene/regelmaßige Halbbreite
+    # für Pufferanalysen gebraucht wird.
+    classification_via:
+      guide_layer: "adv:AX_Strassenachse"
+      guide_only: true
+      guide_to_classifier:
+        link_attr: istTeilVon
+        classifier_layer: "adv:AX_Strasse"
+      filterable_attrs: [widmung, bezeichnung, name]
 
   strassenverkehrsflaeche:
     wfs_layer: "adv:AX_Strassenverkehr"

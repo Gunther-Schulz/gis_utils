@@ -52,76 +52,53 @@ REQUEST_TIMEOUT = 180
 # ---------------------------------------------------------------------------
 
 
-def fetch_classified_features(
+def fetch_classified_guide(
     wfs_url: str,
     *,
-    target_layer: str,
     guide_layer: str,
     extent: tuple[float, float, float, float],
     crs: str,
     classification: dict[str, str],
     classifier_layer: str | None = None,
     classifier_link_attr: str | None = None,
-    spatial_buffer_m: float = 30.0,
     cache_dir: Path | str | None = None,
     no_cache: bool = False,
     output_path: Path | str | None = None,
 ) -> gpd.GeoDataFrame:
-    """Fetch ATKIS target polygons filtered by a classification cascade.
+    """Fetch a guide layer (line/axis) and filter to classification.
 
-    The cascade has up to three steps:
-
-      1. Download `guide_layer` (a line layer with classification info or a
-         link to it) within the bbox.
-      2. Either filter the guide directly by `classification` (when classifier
-         attributes are on the guide itself, e.g. AX_Bahnstrecke), OR
-         resolve `classifier_link_attr` xlinks to `classifier_layer` and
-         filter the parent classifier by `classification` (e.g. AX_Strasse
-         widmung/bezeichnung referenced via AX_Strassenachse.istTeilVon).
-      3. Spatially intersect `target_layer` (polygon) features with the
-         (buffered) filtered guide lines — return matching polygons.
+    This is the first half of :func:`fetch_classified_features` exposed as
+    a standalone function — for use cases where the **guide line itself is
+    the desired output** (e.g. road centerline / Strassenachse for buffer
+    analyses where the polygon geometry is unreliable or unavailable).
 
     Args:
-        wfs_url: ATKIS WFS endpoint, e.g. the MV Basis-DLM Simple-Features URL.
-        target_layer: WFS layer of the polygons we want
-            (e.g. ``"adv:AX_Strassenverkehr"`` or ``"adv:AX_Bahnverkehr"``).
-        guide_layer: WFS layer of lines that carry (or link to) classification
-            (e.g. ``"adv:AX_Strassenachse"``, ``"adv:AX_Bahnstrecke"``).
-        extent: ``(minx, miny, maxx, maxy)`` in `crs`.
-        crs: CRS for both the request and the result.
-        classification: ``{attribute: substring}`` filter, e.g.
-            ``{"widmung": "1301", "bezeichnung": "A24"}``.  Match is
-            case-insensitive substring.
-        classifier_layer: Set when classification attributes live on a parent
-            entity (no own geometry), e.g. ``"adv:AX_Strasse"``.  Omit for
-            Bahn where attributes are directly on the guide line.
-        classifier_link_attr: Name of xlink attribute on `guide_layer`
+        guide_layer: WFS layer of lines (e.g. ``"adv:AX_Strassenachse"``,
+            ``"adv:AX_Bahnstrecke"``).
+        classification: ``{attribute: substring}`` to filter by, e.g.
+            ``{"widmung": "1301", "bezeichnung": "A24"}``.
+        classifier_layer: When classification attributes live on a parent
+            entity (e.g. ``"adv:AX_Strasse"``).  Omit when on the guide
+            itself (e.g. AX_Bahnstrecke).
+        classifier_link_attr: Name of xlink attribute on ``guide_layer``
             pointing to the parent (e.g. ``"istTeilVon"``).  Required if
-            `classifier_layer` is set.
-        spatial_buffer_m: Buffer applied to filtered guide lines before
-            spatial selection of target polygons (compensates for
-            non-overlapping line/polygon geometry).
-        cache_dir: Cache directory (default: ``download_cache/`` in cwd).
-        no_cache: If True, ignore the cache.
-        output_path: If given, also write the result there (.shp or .gpkg).
+            ``classifier_layer`` is set.
+        Other args: see :func:`fetch_classified_features`.
 
     Returns:
-        GeoDataFrame of target polygons matching the classification.  The
-        classification fields are added as columns for traceability.
+        GeoDataFrame with the filtered guide features and their attributes.
     """
     _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
-    cache_file = _cache_path(
-        _cache_dir, target_layer, guide_layer, classifier_layer,
-        classifier_link_attr, classification, extent, crs, spatial_buffer_m,
+    cache_file = _guide_cache_path(
+        _cache_dir, guide_layer, classifier_layer, classifier_link_attr,
+        classification, extent, crs,
     )
-
     if not no_cache and cache_file.exists():
         gdf = gpd.read_file(cache_file)
         if output_path:
             _write(gdf, output_path)
         return gdf
 
-    # 1) Download guide layer with optional xlink extraction
     print(f"[atkis] Downloading guide {guide_layer}...", flush=True)
     guide_gdf, guide_xlinks = _download_features_with_xlinks(
         wfs_url, guide_layer, extent, crs, link_attr=classifier_link_attr,
@@ -130,7 +107,6 @@ def fetch_classified_features(
     if guide_gdf.empty:
         return _empty_gdf(crs, output_path)
 
-    # 2) Filter by classification
     if classifier_layer:
         if not classifier_link_attr:
             raise ValueError(
@@ -167,6 +143,86 @@ def fetch_classified_features(
         flush=True,
     )
 
+    # Annotate with classification for traceability
+    for k, v in classification.items():
+        guide_filtered[k] = v
+
+    # Cache + optional output
+    _cache_dir.mkdir(parents=True, exist_ok=True)
+    guide_filtered.to_file(cache_file, driver="GPKG")
+    if output_path:
+        _write(guide_filtered, output_path)
+
+    return guide_filtered.reset_index(drop=True)
+
+
+def fetch_classified_features(
+    wfs_url: str,
+    *,
+    target_layer: str,
+    guide_layer: str,
+    extent: tuple[float, float, float, float],
+    crs: str,
+    classification: dict[str, str],
+    classifier_layer: str | None = None,
+    classifier_link_attr: str | None = None,
+    spatial_buffer_m: float = 30.0,
+    cache_dir: Path | str | None = None,
+    no_cache: bool = False,
+    output_path: Path | str | None = None,
+) -> gpd.GeoDataFrame:
+    """Fetch ATKIS target polygons filtered via a classified guide cascade.
+
+    Three steps:
+
+      1. Download ``guide_layer`` (a line layer with classification info or
+         a link to it) within the bbox.
+      2. Either filter the guide directly by ``classification`` (when
+         classifier attributes are on the guide itself, e.g. AX_Bahnstrecke),
+         OR resolve ``classifier_link_attr`` xlinks to ``classifier_layer``
+         and filter the parent (e.g. AX_Strasse widmung/bezeichnung
+         referenced via AX_Strassenachse.istTeilVon).
+      3. Spatially intersect ``target_layer`` (polygon) features with the
+         (buffered) filtered guide lines — return matching polygons.
+
+    Args:
+        target_layer: WFS layer of polygons we want
+            (e.g. ``"adv:AX_Strassenverkehr"`` or ``"adv:AX_Bahnverkehr"``).
+        guide_layer: see :func:`fetch_classified_guide`.
+        spatial_buffer_m: Buffer applied to filtered guide lines before
+            spatial selection of target polygons (compensates for
+            non-overlapping line/polygon geometry).
+        Other args: see :func:`fetch_classified_guide`.
+
+    Returns:
+        GeoDataFrame of target polygons matching the classification.
+    """
+    _cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / CACHE_DIR_NAME
+    cache_file = _cache_path(
+        _cache_dir, target_layer, guide_layer, classifier_layer,
+        classifier_link_attr, classification, extent, crs, spatial_buffer_m,
+    )
+    if not no_cache and cache_file.exists():
+        gdf = gpd.read_file(cache_file)
+        if output_path:
+            _write(gdf, output_path)
+        return gdf
+
+    # 1+2) Download + filter guide via shared helper
+    guide_filtered = fetch_classified_guide(
+        wfs_url,
+        guide_layer=guide_layer,
+        extent=extent,
+        crs=crs,
+        classification=classification,
+        classifier_layer=classifier_layer,
+        classifier_link_attr=classifier_link_attr,
+        cache_dir=cache_dir,
+        no_cache=no_cache,
+    )
+    if guide_filtered.empty:
+        return _empty_gdf(crs, output_path)
+
     # 3) Spatial filter on target layer
     print(f"[atkis] Downloading target {target_layer}...", flush=True)
     target_gdf = _wfs_download_geopandas(wfs_url, target_layer, extent, crs)
@@ -184,11 +240,9 @@ def fetch_classified_features(
         flush=True,
     )
 
-    # Annotate result with classification for traceability
     for k, v in classification.items():
         result[k] = v
 
-    # Cache + optional output
     if not result.empty:
         _cache_dir.mkdir(parents=True, exist_ok=True)
         result.to_file(cache_file, driver="GPKG")
@@ -238,6 +292,20 @@ def _cache_path(
     key = hashlib.md5("||".join(parts).encode()).hexdigest()[:12]
     safe = target_layer.replace(":", "_").replace("/", "_")
     return cache_dir / f"atkis_{safe}_{key}.gpkg"
+
+
+def _guide_cache_path(
+    cache_dir: Path, guide_layer, classifier_layer,
+    classifier_link_attr, classification, extent, crs,
+) -> Path:
+    parts = [
+        guide_layer, classifier_layer or "", classifier_link_attr or "",
+        json.dumps(classification, sort_keys=True),
+        str(extent), crs,
+    ]
+    key = hashlib.md5("||".join(parts).encode()).hexdigest()[:12]
+    safe = guide_layer.replace(":", "_").replace("/", "_")
+    return cache_dir / f"atkis_guide_{safe}_{key}.gpkg"
 
 
 def _wfs_download_geopandas(
@@ -494,4 +562,4 @@ def _parse_pos_list(text: str | None) -> list[tuple[float, float]]:
     return coords
 
 
-__all__ = ["fetch_classified_features"]
+__all__ = ["fetch_classified_features", "fetch_classified_guide"]

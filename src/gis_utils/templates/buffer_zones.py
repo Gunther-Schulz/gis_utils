@@ -9,7 +9,11 @@ infrastructure (Autobahn, Bahnstrecke, Hochspannungsleitung, Gewässer) is
 defined by distance bands — e.g. § 35 Abs. 1 Nr. 8 BauGB privileging zone of
 200 m around BAB, with sub-band 0–110 m.
 
-Example workflow.yaml::
+Two source modes
+----------------
+
+**Mode A — trust polygon source.**  Use a polygon directly (e.g. ATKIS
+``AX_Strassenverkehr`` or a manually traced BAB outline)::
 
     - name: BAB Pufferzonen Wölzow
       template: buffer_zones
@@ -17,16 +21,36 @@ Example workflow.yaml::
         source: Shape/A24_Verkehrsflaeche.shp
         crs: "EPSG:25833"
         zones:
-          - name: "0-110m"
-            outer_m: 110
-          - name: "110-200m"
-            inner_m: 110
-            outer_m: 200
+          - {name: "0-110m", outer_m: 110}
+          - {name: "110-200m", inner_m: 110, outer_m: 200}
         target: Shape/Projektfläche.shp        # optional
         report_csv: area_by_bab_zone.csv       # optional
       output: Shape/bab_pufferzonen.gpkg
 
-The output GPKG contains:
+**Mode B — line source + measured / regulatory extension.**  Use the road
+axis (e.g. ATKIS ``AX_Strassenachse``) plus the half-width to the legal
+reference edge (e.g. Fahrbahnkante per StVO).  The source is buffered
+outward by ``source_extend_m`` *before* the zones are computed.  This is
+the right path when the polygon data underestimates the real surface
+(common in MV ATKIS where ``AX_Strassenverkehr`` is narrower than the
+visible road)::
+
+    params:
+      source: Shape/A24_Mittellinie.shp
+      crs: "EPSG:25833"
+      source_extend_m: 9.5     # measured DOP distance Mittellinie → Fahrbahnkante
+      # OR (alternative if the value isn't measured):
+      # lanes_per_direction: 2  # RAA-2008 RQ 31 derives 9.5m for BAB
+      # road_type: bab          # default; only "bab" supported for derivation
+      zones: [...]
+
+If both ``source_extend_m`` and ``lanes_per_direction`` are given, the
+explicit ``source_extend_m`` wins.  Lane-count derivation uses the
+RAA-2008 BAB formula: ``2.0 m + N × 3.75 m`` (half-Mittelstreifen + N
+Fahrstreifen à 3.75 m).
+
+Output GPKG contains
+--------------------
 
 - Layer ``zones`` — the ring polygons (one row per zone).
 - Layer ``zones_target_intersection`` — only present when ``target`` is given.
@@ -42,13 +66,50 @@ from pathlib import Path
 from gis_utils.templates import register
 
 
+# RAA-2008 BAB regulatory geometry (Regelquerschnitt RQ 31 et seq.)
+# Half-Mittelstreifen (2.0 m) + N Fahrstreifen × 3.75 m gives the distance
+# from the BAB axis to the Fahrbahnkante.  RQ 31 (N=2) → 9.5 m;
+# RQ 36 (N=3) → 13.25 m.
+_BAB_HALF_MITTELSTREIFEN_M = 2.0
+_BAB_FAHRSTREIFEN_M = 3.75
+
+
+def _resolve_source_extend(params: dict) -> float:
+    """Decide ``source_extend_m`` from explicit value or lane-count derivation.
+
+    Priority:
+      1. Explicit ``source_extend_m`` (caller's measurement / known half-width).
+      2. ``lanes_per_direction`` + ``road_type`` (default ``bab``) →
+         RAA-2008 formula for BAB; raises for other road types.
+      3. Default ``0.0`` (no extension).
+    """
+    if "source_extend_m" in params and params["source_extend_m"] is not None:
+        return float(params["source_extend_m"])
+    lanes = params.get("lanes_per_direction")
+    if lanes is None:
+        return 0.0
+    road_type = str(params.get("road_type", "bab")).lower()
+    if road_type == "bab":
+        return _BAB_HALF_MITTELSTREIFEN_M + int(lanes) * _BAB_FAHRSTREIFEN_M
+    raise ValueError(
+        f"buffer_zones: lanes_per_direction derivation only supported for "
+        f"road_type='bab' (got '{road_type}'). Provide source_extend_m "
+        f"explicitly for other road types."
+    )
+
+
 @register(
     "buffer_zones",
     description=(
         "Concentric ring buffer zones around a source layer (point/line/polygon); "
-        "optional target intersection + area report"
+        "optional target intersection + area report; supports line+extension "
+        "mode for road-axis sources"
     ),
-    params=["source", "crs", "zones", "target", "report_csv"],
+    params=[
+        "source", "crs", "zones",
+        "source_extend_m", "lanes_per_direction", "road_type",
+        "target", "report_csv",
+    ],
 )
 def buffer_zones_template(
     params: dict, project_dir: Path, output_path: Path
@@ -100,6 +161,12 @@ def buffer_zones_template(
     if source_geom is None or source_geom.is_empty:
         print(f"  [ERROR] source geometry is empty after union")
         return False
+
+    # Mode B: extend source by measured / regulatory half-width
+    extend_m = _resolve_source_extend(params)
+    if extend_m > 0:
+        source_geom = source_geom.buffer(extend_m)
+        print(f"  Source extended by {extend_m:.2f} m before zone computation")
 
     rings = buffer_ring_zones(source_geom, zones_cfg)
     if not rings:

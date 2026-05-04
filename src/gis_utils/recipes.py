@@ -581,22 +581,34 @@ def _run_classified_atkis_recipe(
     no_cache: bool = False,
     **_unused,
 ) -> "gpd.GeoDataFrame":
-    """Resolve ATKIS classification cascade and return matching polygons.
+    """Resolve ATKIS classification cascade and return matching features.
 
     Reads the ``classification_via`` block from the layer recipe::
 
         classification_via:
-          guide_layer: <wfs layer name>
-          spatial_buffer_m: <metres>
+          guide_layer: <wfs layer name>     # guide layer (lines)
+          guide_only: true                  # OPTIONAL: return guide instead
+                                            # of intersected target polygons
+          spatial_buffer_m: <metres>        # only used when guide_only is false
           # Optional cascade through a parent classifier:
           guide_to_classifier:
             link_attr: <name of xlink attribute on guide>
             classifier_layer: <wfs layer name with classification attrs>
 
-    The ``target_layer`` is taken from the recipe's connection (the WFS layer
-    of the alias).
+    Two modes:
+
+    - **target mode** (``guide_only`` absent or false): fetches the recipe's
+      target layer (e.g. AX_Strassenverkehr polygons) and returns those
+      features that spatially intersect the buffered, classification-filtered
+      guide.
+    - **guide-only mode** (``guide_only: true``): returns the
+      classification-filtered guide layer itself (e.g. the A24 axis line).
+      The recipe's target_layer is still used as the alias for output naming
+      but its WFS layer is not downloaded.
     """
-    from gis_utils.atkis import fetch_classified_features
+    from gis_utils.atkis import (
+        fetch_classified_features, fetch_classified_guide,
+    )
 
     if not crs:
         raise ValueError(
@@ -615,6 +627,7 @@ def _run_classified_atkis_recipe(
         raise ValueError(
             f"Recipe '{recipe.name}': classification_via.guide_layer missing."
         )
+    guide_only = bool(classification_via.get("guide_only", False))
     spatial_buffer_m = float(classification_via.get("spatial_buffer_m", 30))
 
     cascade = classification_via.get("guide_to_classifier") or {}
@@ -629,6 +642,19 @@ def _run_classified_atkis_recipe(
     if extent is None:
         raise ValueError(
             f"Recipe '{recipe.name}': extent or input_boundary is required."
+        )
+
+    if guide_only:
+        return fetch_classified_guide(
+            wfs_url,
+            guide_layer=guide_layer,
+            extent=extent,
+            crs=crs,
+            classification=classification,
+            classifier_layer=classifier_layer,
+            classifier_link_attr=classifier_link_attr,
+            no_cache=no_cache,
+            output_path=output_path,
         )
 
     return fetch_classified_features(
