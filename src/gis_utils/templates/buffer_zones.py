@@ -274,5 +274,13 @@ def buffer_zones_template(
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         pd.DataFrame(csv_rows, columns=headers).to_csv(csv_path, index=False)
         print(f"  Report: {csv_path}")
+        # Markdown sibling report — same name, .md extension
+        md_path = csv_path.with_suffix(".md")
+        md_body = (
+            f"# Flächenbilanz Pufferzonen ({source_path.stem})\n\n"
+            f"{markdown_table(headers, md_rows)}\n"
+        )
+        md_path.write_text(md_body, encoding="utf-8")
+        print(f"  Report (md): {md_path}")
 
     return True
