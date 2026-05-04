@@ -45,6 +45,42 @@ Restart Claude Code or run `/reload-plugins` to activate.
 |-------|-------------|
 | `gis-utils:gis-safety` | Any code writing in GIS projects — CRS rules, dangerous defaults, output conventions |
 | `gis-utils:geometry-workflow` | Geometry tasks — enforces data analysis before coding |
+| `gis-utils:workflow-authoring` | `workflow.yaml` editing, `gis-workflow` CLI |
+| `gis-utils:library-extraction` | Project-local Python — when to extract into the library |
+| `gis-utils:dxf-lageplan-extraction` | Reading DXF/CAD plans, extracting layers to GeoPackage/Shapefile |
+| `gis-utils:schutzgebiete-analyse` | Distance/overlap analysis with protected areas (Natura 2000, FFH, NSG, …) |
+| `gis-utils:buffer-zones-workflow` | Buffer zones around BAB, Bahn, infrastructure (e.g. § 35 BauGB privileging) |
+| `gis-utils:qgis-mcp-integration` | Live QGIS bridge — auto-reload, layer add, render preview |
+
+## Live QGIS bridge (optional)
+
+For workflows where you want regenerated outputs to appear immediately
+in your open QGIS project (no manual reload), install the optional
+`[qgis]` extra and the matching QGIS plugin:
+
+```bash
+pip install -e gis-utils[qgis]
+```
+
+Then in QGIS: `Plugins → Manage and Install Plugins…` → search
+"**QGIS MCP**" (by N. Karasiak) → install + enable + Start Server.
+
+Activate auto-reload during a workflow run:
+
+```bash
+GIS_WORKFLOW_QGIS_RELOAD=1 gis-workflow run
+```
+
+The runner refreshes any layer in the open QGIS project whose data
+source matches the step's outputs after each successful step.  When
+QGIS isn't running, the env var is unset, or the `[qgis]` extra
+isn't installed, this is a silent no-op — gis_utils stays
+headless-capable.
+
+For programmatic use in project scripts, see
+`gis_utils.qgis_bridge.reload_paths`, `add_layer`, `execute`.  Full
+setup details and pitfalls in the `gis-utils:qgis-mcp-integration`
+skill.
 
 ## Starting a new project
 
