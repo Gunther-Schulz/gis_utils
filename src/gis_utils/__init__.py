@@ -22,6 +22,7 @@ from gis_utils.dxf.map_od import (
     get_table_handle_by_name,
 )
 from gis_utils.geometry import (
+    buffer_ring_zones,
     classify_direction,
     distance_to_nearest,
     extend_line,
@@ -96,6 +97,7 @@ __all__ = [
     "classify_direction",
     "filter_lines_by_direction",
     "points_with_buffers",
+    "buffer_ring_zones",
     # Reporting
     "area_report",
     "area_by_category",

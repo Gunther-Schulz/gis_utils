@@ -791,6 +791,65 @@ def _shift_x(geom, dx: float):
     return _transform(geom, _apply)
 
 
+def buffer_ring_zones(
+    source_geom,
+    zones: list[dict],
+) -> list[tuple[dict, Any]]:
+    """Concentric ring polygons by distance bands around a source geometry.
+
+    For each zone, computes::
+
+        ring = source.buffer(outer_m).difference(source.buffer(inner_m))
+
+    For polygon sources this naturally excludes the source itself when
+    ``inner_m=0`` (because ``Polygon.buffer(0)`` returns the polygon).  For
+    line sources the source is implicitly contained in the inner band
+    (because ``LineString.buffer(0)`` is empty).
+
+    Args:
+        source_geom: Any Shapely geometry — typically a polygon (e.g. road
+            traffic surface) or line (e.g. railway centerline).  May be a
+            collection.
+        zones: List of zone definitions, each a dict with keys:
+            - ``name`` (str): zone label.
+            - ``outer_m`` (float): outer distance in CRS units (typically
+              metres for projected CRS).
+            - ``inner_m`` (float, optional, default 0): inner distance.
+
+    Returns:
+        List of ``(zone_meta, ring_polygon)`` tuples, ordered as input.
+        Empty rings are dropped.  ``zone_meta`` is the input zone dict plus
+        ``area_m2`` (assumes a metric projected CRS).
+
+    Raises:
+        ValueError: if ``outer_m <= 0`` or ``inner_m >= outer_m``.
+    """
+    out: list[tuple[dict, Any]] = []
+    if source_geom is None or source_geom.is_empty:
+        return out
+    for z in zones:
+        name = z.get("name", "")
+        outer_m = float(z["outer_m"])
+        inner_m = float(z.get("inner_m", 0))
+        if outer_m <= 0:
+            raise ValueError(f"zone '{name}': outer_m must be > 0 (got {outer_m})")
+        if inner_m < 0:
+            raise ValueError(f"zone '{name}': inner_m must be >= 0 (got {inner_m})")
+        if inner_m >= outer_m:
+            raise ValueError(
+                f"zone '{name}': inner_m ({inner_m}) must be < outer_m ({outer_m})"
+            )
+        outer = source_geom.buffer(outer_m)
+        inner = source_geom.buffer(inner_m)
+        ring = outer.difference(inner)
+        if ring.is_empty:
+            continue
+        meta = {**z, "inner_m": inner_m, "outer_m": outer_m,
+                "area_m2": float(ring.area)}
+        out.append((meta, ring))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
