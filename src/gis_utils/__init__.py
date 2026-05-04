@@ -46,6 +46,7 @@ from gis_utils.reporting import (
 )
 from gis_utils.alkis import find_flurstuecke
 from gis_utils.catalog import catalog
+from gis_utils.maps import quick_map
 from gis_utils.recipes import (
     Recipe,
     apply_attribute_mappings,
@@ -110,4 +111,6 @@ __all__ = [
     "find_flurstuecke",
     # Discovery
     "catalog",
+    # Map rendering
+    "quick_map",
 ]
