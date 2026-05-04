@@ -358,23 +358,66 @@ def run_workflow(
 
 
 def _maybe_reload_qgis(step: dict, project_dir: Path) -> None:
-    """Optionally reload step outputs in a running QGIS instance.
+    """Optionally interact with a running QGIS instance after a step.
 
-    Activated by setting environment variable ``GIS_WORKFLOW_QGIS_RELOAD=1``.
+    Three independent post-step actions, each opt-in:
+
+    * **Auto-reload** (``GIS_WORKFLOW_QGIS_RELOAD=1``): refresh layers
+      already in the project whose source matches the step's outputs.
+    * **Auto-open** (``GIS_WORKFLOW_QGIS_OPEN=1`` or ``qgis_open: true``
+      on the step): add the step's outputs as new layers if not already
+      present (vector + raster auto-detected by extension).  Sibling
+      ``.qml`` files (e.g. ``Shape/foo.shp`` + ``Shape/foo.qml``) are
+      applied automatically.
+    * **Auto-screenshot** (``GIS_WORKFLOW_QGIS_SCREENSHOTS=/path``):
+      save the current canvas to ``<path>/<step-name>.png`` for an
+      audit trail of the workflow run.
+
     Silent no-op when disabled, when QGIS is not running, or when the
-    optional ``[qgis]`` extra is not installed.  See ``gis_utils.qgis_bridge``.
+    optional ``[qgis]`` extra is not installed.
     """
     from gis_utils import qgis_bridge
 
-    if not qgis_bridge.auto_reload_enabled():
+    do_reload = qgis_bridge.auto_reload_enabled()
+    do_open = qgis_bridge.auto_open_enabled() or bool(step.get("qgis_open"))
+    shots_dir = qgis_bridge.screenshots_dir()
+    if not (do_reload or do_open or shots_dir):
         return
     if not qgis_bridge.is_available():
         return
+
     outputs = _collect_outputs(step)
-    if not outputs:
-        return
-    paths = [project_dir / out for out in outputs]
-    qgis_bridge.reload_paths(paths)
+    paths = [project_dir / out for out in outputs] if outputs else []
+
+    if do_open and paths:
+        for p in paths:
+            if Path(p).is_file() or Path(p).is_dir():
+                qgis_bridge.open_path(p)
+                _maybe_apply_sibling_qml(p)
+
+    if do_reload and paths:
+        qgis_bridge.reload_paths(paths)
+        for p in paths:
+            _maybe_apply_sibling_qml(p)
+
+    if shots_dir is not None:
+        # Sanitize step name → file-system-safe png name
+        name = step.get("name", "step")
+        safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in name).strip("_")
+        out_png = shots_dir / f"{safe}.png"
+        qgis_bridge.take_canvas_screenshot(out_png)
+
+
+def _maybe_apply_sibling_qml(layer_path) -> None:
+    """If a sibling ``.qml`` exists next to *layer_path*, apply it via the
+    QGIS bridge.  Handles GPKG paths with ``|layername=…`` suffix.
+    """
+    from gis_utils import qgis_bridge
+
+    p = Path(str(layer_path).split("|", 1)[0])
+    qml = p.with_suffix(".qml")
+    if qml.is_file():
+        qgis_bridge.apply_qml(p, qml)
 
 
 def _collect_deps(name: str, by_name: dict[str, dict]) -> set[str]:

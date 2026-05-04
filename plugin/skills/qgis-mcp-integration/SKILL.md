@@ -74,42 +74,141 @@ In Claude Code, after `/reload-plugins` or full restart, run
 
 ## Usage patterns
 
-### Pattern A — Auto-reload after `gis-workflow run`
+### Pattern A — Auto-reload existing layers after `gis-workflow run`
 
-Set the env var; the runner reloads each step's outputs in the open
-QGIS project after the step succeeds.
+Set the env var; after each successful step the runner refreshes all
+layers in the open QGIS project whose source matches the step's
+outputs.
 
 ```bash
 GIS_WORKFLOW_QGIS_RELOAD=1 gis-workflow run
 ```
 
-Layers in QGIS that point at the same source path get refreshed; new
-files are NOT auto-added (they have to be in the project already).
+Layers must already be in the QGIS project — this only **reloads**,
+not adds.
 
-### Pattern B — Programmatic from a project script
+### Pattern B — Auto-open new outputs (vector + raster)
+
+Adds new outputs to the project as layers (with idempotent dedup).
+Two ways to enable:
+
+```bash
+GIS_WORKFLOW_QGIS_OPEN=1 gis-workflow run    # globally
+```
+
+```yaml
+# Per-step, in workflow.yaml:
+- name: My step
+  ...
+  qgis_open: true
+```
+
+Vector vs raster is auto-detected by file extension.
+
+**Sibling QML auto-applied**: if `Shape/foo.shp` has a sibling
+`Shape/foo.qml`, the runner applies it on add/reload.  Convention over
+configuration — drop a QML next to a generated layer and it just works.
+
+Recommended for live development:
+
+```bash
+GIS_WORKFLOW_QGIS_RELOAD=1 GIS_WORKFLOW_QGIS_OPEN=1 gis-workflow run
+```
+
+### Pattern C — Auto-screenshot audit trail
+
+Save canvas screenshots after every successful step to a directory:
+
+```bash
+GIS_WORKFLOW_QGIS_SCREENSHOTS=Output/audit/screenshots gis-workflow run
+```
+
+Filenames are derived from step names (sanitized).  Useful for
+review / Behörden-Nachweis: documents the visual state of the QGIS
+project after each generation step.
+
+### Pattern D — Apply a saved QML style explicitly
+
+When the QML lives elsewhere than next to the data file (central
+styles directory), use the `apply_qml_style` template:
+
+```yaml
+- name: Pufferzonen stylen
+  template: apply_qml_style
+  params:
+    layer: Shape/bab_pufferzonen.gpkg
+    qml: ~/dev/Gunther-Schulz/PBS-Templates/styles/bab_pufferzonen.qml
+```
+
+### Pattern E — Print layout from a QGIS .qpt template
+
+For deterministic Lageplan-PDFs:
+
+```yaml
+- name: Lageplan PDF erzeugen
+  template: layout_from_qpt
+  params:
+    template: ~/dev/Gunther-Schulz/PBS-Templates/Lageplan-A3.qpt
+    layout_name: "Wölzow Lageplan A3"
+    items:
+      title: "PV-Anlage Wölzow — Privilegierungsplan"
+      subtitle: "B-Plan Nr. 25-01, Stand Mai 2026"
+    map:
+      id: main_map
+      layers: ["Modulflächen", "BAB-Pufferzonen"]
+      extent_from_layer: "Projektfläche"
+      buffer_m: 200
+    format: pdf
+    dpi: 300
+  output: Output/Karten/Lageplan_A3.pdf
+```
+
+To create the `.qpt`: build the layout once in QGIS (Page Setup,
+schriftfeld, logo, legend, scale bar, north arrow), assign meaningful
+**Item IDs** in the Item Properties panel, then Layout Manager →
+Save as Template.
+
+### Pattern F — Programmatic from a project script
 
 ```python
 from gis_utils import qgis_bridge
 
-# Generate the file ...
+# Generate file ...
 gdf.to_file("Shape/MyResult.gpkg", driver="GPKG")
 
-# Reload in QGIS (no-op if QGIS not running)
+# Reload existing matching layers (no-op if QGIS not running)
 qgis_bridge.reload_paths(["Shape/MyResult.gpkg"])
 
-# Or add as a new layer (idempotent — won't duplicate)
-qgis_bridge.add_layer("Shape/MyResult.gpkg", name="My Result")
+# Or add as a new layer (auto-detects vector/raster, idempotent)
+qgis_bridge.open_path("Shape/MyResult.gpkg", name="My Result")
+
+# Apply a QML style
+qgis_bridge.apply_qml("Shape/MyResult.gpkg", "styles/result.qml")
+
+# Take a canvas screenshot
+qgis_bridge.take_canvas_screenshot("Output/preview.png")
 
 # Or arbitrary PyQGIS:
 qgis_bridge.execute("iface.mapCanvas().refresh()")
 ```
 
-### Pattern C — Claude orchestration via MCP tools directly
+### Pattern G — Claude orchestration via MCP tools directly
 
 When working interactively in a Claude Code session with the qgis MCP
 loaded, prefer `mcp__qgis__*` tools for ad-hoc layer manipulation,
 canvas screenshots, layout exports, etc.  The bridge is for *workflow*
 integration; the MCP tools are for *interactive* control.
+
+## Environment variable summary
+
+| Variable | Effect | Independent of others? |
+|---|---|---|
+| `GIS_WORKFLOW_QGIS_RELOAD=1` | Refresh existing matching layers after each step | Yes |
+| `GIS_WORKFLOW_QGIS_OPEN=1` | Add new outputs as layers + auto-apply sibling QML | Yes |
+| `GIS_WORKFLOW_QGIS_SCREENSHOTS=path/to/dir` | Save canvas PNG after each step | Yes |
+
+All three are independent and can combine.  None require QGIS to be
+running — they all gracefully no-op when QGIS is unreachable.
 
 ## Common pitfalls (lessons learned the hard way)
 

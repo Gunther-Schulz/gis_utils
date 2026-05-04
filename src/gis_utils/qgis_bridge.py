@@ -144,6 +144,15 @@ def reload_paths(
             pass
 
 
+_RASTER_EXTENSIONS = {".tif", ".tiff", ".jp2", ".png", ".jpg", ".jpeg",
+                      ".gif", ".bmp", ".vrt", ".asc", ".img", ".dem"}
+
+
+def _is_raster_path(path: Path) -> bool:
+    """Heuristic — is this a raster file based on extension?"""
+    return path.suffix.lower() in _RASTER_EXTENSIONS
+
+
 def add_layer(
     path: str | Path,
     *,
@@ -188,6 +197,159 @@ def add_layer(
             pass
 
 
+def add_raster(
+    path: str | Path,
+    *,
+    name: str | None = None,
+    provider: str = "gdal",
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> bool:
+    """Add a raster layer to the open QGIS project (idempotent).
+
+    If a layer with the same source path already exists it is reloaded
+    instead of being added a second time.  Returns ``True`` on success.
+    """
+    p = Path(path).resolve()
+    client = _connect(host, port)
+    if client is None:
+        return False
+    try:
+        existing = client.execute_code(
+            f"from qgis.core import QgsProject\n"
+            f"result = any(l.source().startswith({str(p)!r}) "
+            f"for l in QgsProject.instance().mapLayers().values())\n"
+        )
+        already = False
+        if isinstance(existing, dict):
+            inner = existing.get("result")
+            if isinstance(inner, dict):
+                already = bool(inner.get("result"))
+        if already:
+            return reload_paths([p], host=host, port=port) > 0
+        client.add_raster_layer(str(p), name=name, provider=provider)
+        return True
+    except Exception as exc:
+        print(f"[qgis_bridge] add_raster failed for {p}: {exc}")
+        return False
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+
+def open_path(
+    path: str | Path,
+    *,
+    name: str | None = None,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> bool:
+    """Auto-detect raster vs vector and add the appropriate layer type.
+
+    Detection by file extension; vector is the default fallback so that
+    GeoPackage / Shapefile / GeoJSON / DXF / etc. are correctly added.
+    """
+    p = Path(path)
+    if _is_raster_path(p):
+        return add_raster(p, name=name, host=host, port=port)
+    return add_layer(p, name=name, host=host, port=port)
+
+
+def apply_qml(
+    layer_path: str | Path,
+    qml_path: str | Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> int:
+    """Apply a QML style to layer(s) in the open QGIS project whose source
+    matches ``layer_path``.
+
+    Returns number of layers styled.  ``0`` if QGIS not reachable, no
+    matching layer in project, or QML file missing.  No-op if file
+    doesn't exist (logged warning, not error).
+    """
+    lp = Path(layer_path).resolve()
+    qp = Path(qml_path).resolve()
+    if not qp.is_file():
+        print(f"[qgis_bridge] QML not found: {qp}")
+        return 0
+    client = _connect(host, port)
+    if client is None:
+        return 0
+    code = (
+        "from qgis.core import QgsProject\n"
+        f"_lp = {str(lp)!r}\n"
+        f"_qml = {str(qp)!r}\n"
+        "_n = 0\n"
+        "for _l in QgsProject.instance().mapLayers().values():\n"
+        "    if _l.source().startswith(_lp):\n"
+        "        _ok, _msg = _l.loadNamedStyle(_qml)\n"
+        "        if _ok:\n"
+        "            _l.triggerRepaint()\n"
+        "            _n += 1\n"
+        "iface.mapCanvas().refresh() if _n else None\n"
+        "result = _n\n"
+    )
+    try:
+        resp = client.execute_code(code)
+        n = 0
+        if isinstance(resp, dict):
+            inner = resp.get("result")
+            if isinstance(inner, dict):
+                n = int(inner.get("result", 0) or 0)
+        if n:
+            print(f"[qgis_bridge] Applied QML {qp.name} to {n} layer(s)")
+        return n
+    except Exception as exc:
+        print(f"[qgis_bridge] apply_qml failed: {exc}")
+        return 0
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+
+def take_canvas_screenshot(
+    out_path: str | Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> bool:
+    """Save the current QGIS map canvas to a PNG file.
+
+    Returns True on success, False if QGIS unreachable.  Uses PyQGIS
+    canvas grab — fast, no re-render, captures whatever the user is
+    looking at right now.
+    """
+    out = Path(out_path).resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    client = _connect(host, port)
+    if client is None:
+        return False
+    code = (
+        f"_out = {str(out)!r}\n"
+        "_canvas = iface.mapCanvas()\n"
+        "_pixmap = _canvas.grab()\n"
+        "_pixmap.save(_out)\n"
+        "result = _out\n"
+    )
+    try:
+        client.execute_code(code)
+        return out.is_file()
+    except Exception as exc:
+        print(f"[qgis_bridge] take_canvas_screenshot failed: {exc}")
+        return False
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+
 def execute(
     code: str,
     *,
@@ -214,12 +376,33 @@ def execute(
             pass
 
 
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def auto_reload_enabled() -> bool:
     """Whether the workflow runner should auto-reload after each step.
 
     Controlled by environment variable ``GIS_WORKFLOW_QGIS_RELOAD``.
-    Truthy values (``1``, ``true``, ``yes``, ``on``, case-insensitive)
-    enable it; everything else (including unset) disables it.
     """
-    val = os.environ.get("GIS_WORKFLOW_QGIS_RELOAD", "").strip().lower()
-    return val in {"1", "true", "yes", "on"}
+    return _env_truthy("GIS_WORKFLOW_QGIS_RELOAD")
+
+
+def auto_open_enabled() -> bool:
+    """Whether the workflow runner should auto-open new outputs in QGIS.
+
+    Controlled by environment variable ``GIS_WORKFLOW_QGIS_OPEN``.
+    Independent of auto_reload — open=add new, reload=refresh existing.
+    Both can be active at once (recommended for live development).
+    """
+    return _env_truthy("GIS_WORKFLOW_QGIS_OPEN")
+
+
+def screenshots_dir() -> Path | None:
+    """Directory for the workflow runner's auto-screenshot audit trail.
+
+    Set via env var ``GIS_WORKFLOW_QGIS_SCREENSHOTS`` to a directory path.
+    Returns Path or None when disabled / not set.
+    """
+    val = os.environ.get("GIS_WORKFLOW_QGIS_SCREENSHOTS", "").strip()
+    return Path(val) if val else None

@@ -73,11 +73,13 @@ def list_templates() -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 from gis_utils.templates import (  # noqa: E402, F401
+    apply_qml_style,
     buffer_zones,
     concentric_point_buffers,
     distance_lines_to_nearest,
     dxf_extract_layers,
     dxf_lines_to_polygon,
     dxf_verification,
+    layout_from_qpt,
     point_buffer_union,
 )

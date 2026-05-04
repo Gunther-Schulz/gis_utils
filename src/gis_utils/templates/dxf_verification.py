@@ -35,7 +35,7 @@ from gis_utils.templates import register
 @register(
     "verification_dxf",
     description="Write original DXF lines + derived polygon to DXF for visual QA",
-    params=["dxf", "layer", "crs", "strip_zone", "polygon"],
+    params=["dxf", "layer", "crs", "strip_zone", "polygon", "qgis_load_inputs"],
 )
 def verification_dxf(
     params: dict, project_dir: Path, output_path: Path
@@ -48,6 +48,9 @@ def verification_dxf(
         crs: Coordinate reference system.
         strip_zone (optional): Strip UTM zone prefix.  Default ``false``.
         polygon: Path to the derived polygon GeoPackage (relative to project root).
+        qgis_load_inputs (optional): If true and QGIS is reachable, also
+            add the source DXF and polygon as layers in QGIS for direct
+            visual comparison.  Default ``false``.  No-op without QGIS.
     """
     import geopandas as gpd
 
@@ -105,4 +108,13 @@ def verification_dxf(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     doc.saveas(output_path)
     print(f"  Written: {output_path}")
+
+    # Optional: open source layers in QGIS for visual comparison
+    if params.get("qgis_load_inputs"):
+        from gis_utils import qgis_bridge
+        if qgis_bridge.is_available():
+            qgis_bridge.open_path(dxf_path)
+            qgis_bridge.open_path(polygon_path)
+            print(f"  [qgis] Loaded source DXF + polygon for visual comparison")
+
     return True
