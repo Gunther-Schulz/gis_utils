@@ -344,6 +344,7 @@ def run_workflow(
 
         if ok:
             print(f"  {prefix} {name} — done ({elapsed:.1f}s)")
+            _maybe_reload_qgis(step, project_dir)
         else:
             print(f"  {prefix} {name} — FAILED ({elapsed:.1f}s)")
             if step.get("required", True):
@@ -354,6 +355,26 @@ def run_workflow(
     if not dry_run:
         print(f"\n{'All steps completed.' if all_ok else 'Completed with errors.'}")
     return all_ok
+
+
+def _maybe_reload_qgis(step: dict, project_dir: Path) -> None:
+    """Optionally reload step outputs in a running QGIS instance.
+
+    Activated by setting environment variable ``GIS_WORKFLOW_QGIS_RELOAD=1``.
+    Silent no-op when disabled, when QGIS is not running, or when the
+    optional ``[qgis]`` extra is not installed.  See ``gis_utils.qgis_bridge``.
+    """
+    from gis_utils import qgis_bridge
+
+    if not qgis_bridge.auto_reload_enabled():
+        return
+    if not qgis_bridge.is_available():
+        return
+    outputs = _collect_outputs(step)
+    if not outputs:
+        return
+    paths = [project_dir / out for out in outputs]
+    qgis_bridge.reload_paths(paths)
 
 
 def _collect_deps(name: str, by_name: dict[str, dict]) -> set[str]:

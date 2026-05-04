@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gis-utils"
-version = "0.3.0"
+version = "0.4.0"
 description = "GIS utilities: DXF extraction, geometry operations, area reporting, WMS vectorization"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -20,6 +20,15 @@ dependencies = [
     "scipy",
     "scikit-image",
     "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Live QGIS integration via the qgis-mcp plugin (auto-reload, layer add,
+# preview rendering, etc.).  Pulls in qgis-mcp's Python client; the QGIS
+# plugin itself must be installed separately via QGIS Plugin Manager
+# (search "QGIS MCP", by N. Karasiak).  See README → Live QGIS bridge.
+qgis = [
+    "qgis-mcp @ git+https://github.com/nkarasiak/qgis-mcp.git",
 ]
 
 [project.scripts]
