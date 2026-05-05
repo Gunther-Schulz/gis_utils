@@ -313,6 +313,237 @@ def apply_qml(
             pass
 
 
+def _compose_layout_values(
+    auftragnehmer_yaml: str | Path | None,
+    project_yaml: str | Path | None,
+    freeze_bearbeitungsstand: bool,
+) -> tuple[dict[str, str], str | None]:
+    """Build placeholder-values dict + logo path from PBS-Templates YAMLs.
+
+    Schema (both YAMLs optional — missing fields become empty strings):
+
+    auftragnehmer.yaml:
+        name, firm_lines (list), address (list), logo_path
+
+    project.yaml:
+        title, project_name, body_text, bearbeiter,
+        auftraggeber: {name, address (list)} OR plain string,
+        bearbeitungsstand (optional literal — overrides expression / freeze flag)
+
+    Bearbeitungsstand resolution order:
+        1. project_yaml.bearbeitungsstand (literal string) if set
+        2. today's date as literal if ``freeze_bearbeitungsstand=True``
+        3. live QGIS now() expression (default)
+    """
+    import yaml
+
+    a: dict = {}
+    p: dict = {}
+    if auftragnehmer_yaml and Path(auftragnehmer_yaml).is_file():
+        a = yaml.safe_load(Path(auftragnehmer_yaml).read_text(encoding="utf-8")) or {}
+    if project_yaml and Path(project_yaml).is_file():
+        p = yaml.safe_load(Path(project_yaml).read_text(encoding="utf-8")) or {}
+
+    # auftragnehmer_block
+    auftragnehmer_lines: list[str] = []
+    if a:
+        auftragnehmer_lines.append("Auftragnehmer:")
+        if a.get("name"):
+            auftragnehmer_lines.append(str(a["name"]))
+        auftragnehmer_lines.extend(str(x) for x in a.get("firm_lines", []) if x)
+        auftragnehmer_lines.extend(str(x) for x in a.get("address", []) if x)
+
+    # auftraggeber_block — accept structured dict or pre-formatted string
+    auftraggeber_lines: list[str] = []
+    ag = p.get("auftraggeber")
+    if isinstance(ag, dict):
+        auftraggeber_lines.append("Auftraggeber:")
+        if ag.get("name"):
+            auftraggeber_lines.append(str(ag["name"]))
+        auftraggeber_lines.extend(str(x) for x in ag.get("address", []) if x)
+    elif isinstance(ag, str) and ag.strip():
+        auftraggeber_lines = ag.splitlines()
+
+    # bearbeitungsstand resolution
+    if "bearbeitungsstand" in p:
+        bearb = str(p["bearbeitungsstand"])
+    elif freeze_bearbeitungsstand:
+        from datetime import date
+        d = date.today()
+        bearb = f"{d.day}.{d.month}.{d.year}"
+    else:
+        bearb = "[% concat(day(now()),'.', month(now()),'.', year( now()  ))%]"
+
+    bearbeiter = str(p.get("bearbeiter", "")).strip()
+    bearbeiter_line = f"Bearbeiter: {bearbeiter}" if bearbeiter else ""
+
+    values: dict[str, str] = {
+        "title": str(p.get("title", "")),
+        "project_name": str(p.get("project_name", "")),
+        "body_text": str(p.get("body_text", "")),
+        "auftragnehmer_block": "\n".join(auftragnehmer_lines),
+        "bearbeiter_line": bearbeiter_line,
+        "bearbeitungsstand": bearb,
+        "auftraggeber_block": "\n".join(auftraggeber_lines),
+    }
+    logo_path = a.get("logo_path") if a else None
+    return values, logo_path
+
+
+def render_layout_template(
+    template_path: str | Path,
+    *,
+    auftragnehmer_yaml: str | Path | None = None,
+    project_yaml: str | Path | None = None,
+    output_pdf: str | Path | None = None,
+    output_png: str | Path | None = None,
+    layout_name: str | None = None,
+    freeze_bearbeitungsstand: bool = False,
+    extent_from_canvas: bool = True,
+    dpi: int = 300,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> bool:
+    """Load a .qpt template into the running QGIS, fill placeholders, export.
+
+    Targets PBS-style layout templates (see Gunther-Schulz/PBS-Templates).
+    Fills label items by Item ID using ``{{placeholder}}`` substitution.
+    Expected placeholder set::
+
+        {{title}}, {{project_name}}, {{body_text}},
+        {{auftragnehmer_block}}, {{bearbeiter_line}},
+        {{bearbeitungsstand}}, {{auftraggeber_block}}
+
+    Resolves the ``auftragnehmer_logo`` picture item's path from the
+    auftragnehmer YAML's ``logo_path`` field. Optionally sets the
+    ``main_map`` item's extent to the live canvas extent (default).
+
+    Args:
+        template_path: Path to .qpt file.
+        auftragnehmer_yaml: Optional path to a contractor identity YAML.
+        project_yaml: Optional path to a per-project YAML.
+        output_pdf / output_png: Optional export targets. If both None, the
+            layout is added to the project but not exported.
+        layout_name: Layout name in the QGIS layout manager. Defaults to
+            the template's embedded name. Replaces a same-named layout if
+            it already exists in the project.
+        freeze_bearbeitungsstand: If True, replaces the ``{{bearbeitungsstand}}``
+            placeholder with today's literal date instead of the live
+            QGIS now() expression. Useful for archival exports.
+        extent_from_canvas: If True (default), the main_map item's extent
+            is reset to the current canvas — useful when reusing a template
+            that was authored against a different project's coordinates.
+        dpi: Export DPI.
+
+    Returns ``True`` on success, ``False`` if QGIS unreachable or the
+    template fails to load.
+    """
+    tpath = Path(template_path).resolve()
+    if not tpath.is_file():
+        print(f"[qgis_bridge] template not found: {tpath}")
+        return False
+
+    values, logo_path = _compose_layout_values(
+        auftragnehmer_yaml, project_yaml, freeze_bearbeitungsstand,
+    )
+
+    out_pdf = str(Path(output_pdf).resolve()) if output_pdf else None
+    out_png = str(Path(output_png).resolve()) if output_png else None
+    logo = logo_path or ""
+
+    code = (
+        "from qgis.core import (QgsProject, QgsPrintLayout, QgsReadWriteContext,\n"
+        "    QgsLayoutItemLabel, QgsLayoutItemPicture, QgsLayoutItemMap,\n"
+        "    QgsLayoutExporter)\n"
+        "from qgis.PyQt.QtXml import QDomDocument\n"
+        "from qgis.utils import iface\n"
+        f"_template_path = {str(tpath)!r}\n"
+        f"_layout_name = {layout_name!r}\n"
+        f"_values = {values!r}\n"
+        f"_logo_path = {logo!r}\n"
+        f"_extent_from_canvas = {bool(extent_from_canvas)!r}\n"
+        f"_out_pdf = {out_pdf!r}\n"
+        f"_out_png = {out_png!r}\n"
+        f"_dpi = {int(dpi)!r}\n"
+        "_proj = QgsProject.instance()\n"
+        "_mgr = _proj.layoutManager()\n"
+        "_layout = QgsPrintLayout(_proj)\n"
+        "_doc = QDomDocument()\n"
+        "with open(_template_path, 'r', encoding='utf-8') as _f:\n"
+        "    _doc.setContent(_f.read())\n"
+        "_ctx = QgsReadWriteContext()\n"
+        "_loaded = _layout.loadFromTemplate(_doc, _ctx)\n"
+        "if isinstance(_loaded, tuple):\n"
+        "    _ok = bool(_loaded[1]) if len(_loaded) > 1 else True\n"
+        "else:\n"
+        "    _ok = bool(_loaded)\n"
+        "if not _ok:\n"
+        "    result = {'ok': False, 'error': 'loadFromTemplate failed'}\n"
+        "else:\n"
+        "    if _layout_name:\n"
+        "        _layout.setName(_layout_name)\n"
+        "    _name = _layout.name()\n"
+        "    for _existing in list(_mgr.layouts()):\n"
+        "        if _existing is not _layout and _existing.name() == _name:\n"
+        "            _mgr.removeLayout(_existing)\n"
+        "    for _it in _layout.items():\n"
+        "        if isinstance(_it, QgsLayoutItemLabel):\n"
+        "            _t = _it.text()\n"
+        "            for _k, _v in _values.items():\n"
+        "                _t = _t.replace('{{' + _k + '}}', _v)\n"
+        "            _it.setText(_t)\n"
+        "    _logo_item = _layout.itemById('auftragnehmer_logo')\n"
+        "    if isinstance(_logo_item, QgsLayoutItemPicture) and _logo_path:\n"
+        "        _logo_item.setPicturePath(_logo_path)\n"
+        "    _map = _layout.itemById('main_map')\n"
+        "    if isinstance(_map, QgsLayoutItemMap):\n"
+        "        _map.setFollowVisibilityPreset(False)\n"
+        "        _map.setKeepLayerSet(False)\n"
+        "        if _extent_from_canvas:\n"
+        "            _map.zoomToExtent(iface.mapCanvas().extent())\n"
+        "    _mgr.addLayout(_layout)\n"
+        "    _exported = []\n"
+        "    if _out_pdf:\n"
+        "        _exp = QgsLayoutExporter(_layout)\n"
+        "        _s = QgsLayoutExporter.PdfExportSettings()\n"
+        "        _s.dpi = _dpi\n"
+        "        _exp.exportToPdf(_out_pdf, _s)\n"
+        "        _exported.append(_out_pdf)\n"
+        "    if _out_png:\n"
+        "        _exp = QgsLayoutExporter(_layout)\n"
+        "        _s = QgsLayoutExporter.ImageExportSettings()\n"
+        "        _s.dpi = _dpi\n"
+        "        _exp.exportToImage(_out_png, _s)\n"
+        "        _exported.append(_out_png)\n"
+        "    result = {'ok': True, 'name': _name, 'exported': _exported}\n"
+    )
+
+    client = _connect(host, port)
+    if client is None:
+        return False
+    try:
+        resp = client.execute_code(code)
+        inner: dict = {}
+        if isinstance(resp, dict):
+            r = resp.get("result")
+            if isinstance(r, dict):
+                inner = r.get("result") if isinstance(r.get("result"), dict) else r
+        if not inner.get("ok"):
+            print(f"[qgis_bridge] render_layout_template: {inner.get('error', 'unknown error')}")
+            return False
+        if inner.get("exported"):
+            print(f"[qgis_bridge] rendered {inner.get('name')!r} → {inner['exported']}")
+        return True
+    except Exception as exc:
+        print(f"[qgis_bridge] render_layout_template failed: {exc}")
+        return False
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+
 def take_canvas_screenshot(
     out_path: str | Path,
     *,
