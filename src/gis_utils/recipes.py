@@ -197,12 +197,20 @@ def _recipe_matches(recipe: Recipe, term: str) -> bool:
     return False
 
 
-def resolve_connection(recipe: Recipe) -> dict[str, str]:
+def resolve_connection(recipe: Recipe) -> dict[str, Any]:
     """Resolve recipe connection to kwargs dict.
 
     Returns dict with keys depending on connection type:
-    - WMS: {type, wms_url, wms_layer, crs}
+    - WMS: {type, wms_url, wms_layer, crs,
+            min_scale_denominator?, max_scale_denominator?}
     - WFS: {type, wfs_url, layer, crs, version}
+
+    ``min_scale_denominator`` / ``max_scale_denominator`` are optional WMS
+    scale-visibility overrides — only set when the recipe author needs to
+    correct or supply values that GetCapabilities doesn't expose. The
+    primary source of these values remains the live WMS endpoint metadata
+    (see ``gis_utils.wms.get_wms_layer_metadata``); the YAML entries are an
+    override of last resort.
     """
     conn = recipe.connection
     url = conn.get("url")
@@ -227,7 +235,7 @@ def resolve_connection(recipe: Recipe) -> dict[str, str]:
             f"Recipe '{recipe.name}': no url or qgis_name in connection"
         )
 
-    result: dict[str, str] = {"type": conn_type}
+    result: dict[str, Any] = {"type": conn_type}
     if conn_type == "wfs":
         result["wfs_url"] = url
         if conn.get("layer"):
@@ -242,6 +250,9 @@ def resolve_connection(recipe: Recipe) -> dict[str, str]:
             result["wms_layer"] = conn["layer"]
         if conn.get("crs"):
             result["crs"] = conn["crs"]
+        for k in ("min_scale_denominator", "max_scale_denominator"):
+            if conn.get(k) is not None:
+                result[k] = float(conn[k])
     return result
 
 
