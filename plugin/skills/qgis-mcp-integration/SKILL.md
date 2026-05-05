@@ -72,6 +72,66 @@ claude mcp list                          # qgis: ✓ Connected
 In Claude Code, after `/reload-plugins` or full restart, run
 `mcp__qgis__diagnose` — should report all checks ✓.
 
+## Multiple QGIS instances
+
+The qgis-mcp plugin binds a single TCP port (default 9876) per QGIS
+process.  A second QGIS started on the same port silently fails to
+serve MCP.  Both halves of the stack already support multi-port —
+no fork or wrapper script needed:
+
+- **Plugin (QGIS side)**: toolbar dropdown next to the "Run MCP"
+  button has a port spin-box.  Choice persists in QSettings
+  per-profile.
+- **Server (Claude side)**: reads `QGIS_MCP_PORT` env var.
+
+**Convention: name registrations by port number, not by project.**
+The MCP is port-bound and project-blind — it sees whatever project
+is loaded behind the port at the moment of the call.  Use names like
+`qgis_9877`, `qgis_9878` so the registration name encodes the port,
+making it obvious which spinbox value to set in QGIS.
+
+```bash
+# Default instance — port 9876, registration name "qgis":
+claude mcp add qgis --scope user \
+  -e PYTHONPATH=/home/<USER>/dev/Gunther-Schulz/qgis-mcp/src \
+  -- uv run --no-sync \
+  --directory /home/<USER>/dev/Gunther-Schulz/qgis-mcp \
+  src/qgis_mcp/server.py
+
+# Second instance — port 9877, registration name "qgis_9877":
+claude mcp add qgis_9877 --scope user \
+  -e QGIS_MCP_PORT=9877 \
+  -e PYTHONPATH=/home/<USER>/dev/Gunther-Schulz/qgis-mcp/src \
+  -- uv run --no-sync \
+  --directory /home/<USER>/dev/Gunther-Schulz/qgis-mcp \
+  src/qgis_mcp/server.py
+```
+
+Both env vars (`QGIS_MCP_PORT` *and* `PYTHONPATH`) are required for
+non-default ports — `claude mcp list` reports `✗ Failed to connect`
+if `PYTHONPATH` is missing because the server crashes at import
+before it ever reaches the port logic.  A quick `claude mcp list`
+sanity check will catch this immediately.
+
+After registration, `/reload-plugins` in Claude Code is sufficient —
+no full restart required.  Each port appears as its own tool family:
+`mcp__qgis__*`, `mcp__qgis_9877__*`, etc.
+
+**Per-profile gotcha**: the plugin saves its port choice in QSettings
+scoped to the QGIS user profile.  Two QGIS instances using the same
+default profile will both restore the same saved port and the second
+one fails to bind.  For habitual multi-instance use, launch each with
+its own profile:
+
+```bash
+qgis --profile inst1     # remembers port 9876
+qgis --profile inst2     # remembers port 9877
+```
+
+This way the spinbox-and-save sequence only needs doing once per
+profile, and each instance comes back up on the right port on its
+own.
+
 ## Usage patterns
 
 ### Pattern A — Auto-reload existing layers after `gis-workflow run`
