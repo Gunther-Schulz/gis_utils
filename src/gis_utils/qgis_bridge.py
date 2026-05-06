@@ -239,6 +239,129 @@ def add_raster(
             pass
 
 
+def add_wms_layer(
+    wms_url: str,
+    layer: str,
+    *,
+    style: str | None = None,
+    crs: str | None = None,
+    name: str | None = None,
+    image_format: str = "image/png",
+    apply_scale_visibility: bool = True,
+    min_scale_denominator: float | None = None,
+    max_scale_denominator: float | None = None,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> bool:
+    """Add a WMS raster layer to the open QGIS project, respecting endpoint metadata.
+
+    Fetches GetCapabilities to fill in defaults that the user did not pass:
+
+    * ``style`` defaults to the layer's first own style (falls back to first
+      inherited style); some servers reject empty styles or inherited-only
+      ones, so this is more reliable than ``styles=`` in the URI.
+    * ``crs`` defaults to the layer's first advertised CRS.
+    * Scale-based visibility is configured from the layer's
+      ``MinScaleDenominator`` / ``MaxScaleDenominator``. Caller can override
+      either via keyword. Pass ``apply_scale_visibility=False`` to skip
+      entirely.
+
+    Note WMS↔QGIS scale naming inversion: the WMS Min/MaxScaleDenominator
+    fields map to QGIS ``setMaximumScale`` / ``setMinimumScale`` respectively.
+
+    Idempotent — re-adding the same ``(wms_url, layer, style)`` triple is a
+    no-op (returns True). Identity tracked via a custom layer property
+    ``gis_utils/wms_id``.
+
+    Returns ``True`` if the layer was added (or already present), ``False``
+    if QGIS is not reachable or the layer could not be constructed.
+    """
+    from gis_utils.wms import get_wms_layer_metadata  # avoid import at module load
+
+    meta = get_wms_layer_metadata(wms_url, layer)
+    if meta is None:
+        # fall back to caller-provided values; if essentials are missing, fail
+        if style is None or crs is None:
+            print(
+                f"[qgis_bridge] add_wms_layer: cannot fetch GetCapabilities "
+                f"for {wms_url} and no style/crs supplied"
+            )
+            return False
+    else:
+        if style is None:
+            style = meta.default_style or ""
+        if crs is None:
+            crs = meta.available_crs[0] if meta.available_crs else "EPSG:4326"
+        if min_scale_denominator is None:
+            min_scale_denominator = meta.min_scale_denominator
+        if max_scale_denominator is None:
+            max_scale_denominator = meta.max_scale_denominator
+
+    wms_id = f"{wms_url}::{layer}::{style or ''}"
+    display_name = name or (meta.title if meta and meta.title else layer)
+    uri = (
+        f"crs={crs}&dpiMode=7&format={image_format}"
+        f"&layers={layer}&styles={style or ''}&url={wms_url}"
+    )
+
+    # Convert WMS denominators to QGIS scale-API values (note inversion).
+    qgis_max_scale = min_scale_denominator if (min_scale_denominator and apply_scale_visibility) else 0.0
+    qgis_min_scale = max_scale_denominator if (max_scale_denominator and apply_scale_visibility) else 0.0
+    enable_scale = apply_scale_visibility and (qgis_min_scale or qgis_max_scale)
+
+    client = _connect(host, port)
+    if client is None:
+        return False
+    code = (
+        "from qgis.core import QgsProject, QgsRasterLayer\n"
+        f"_wms_id = {wms_id!r}\n"
+        f"_uri = {uri!r}\n"
+        f"_name = {display_name!r}\n"
+        f"_enable_scale = {bool(enable_scale)!r}\n"
+        f"_min_scale = {float(qgis_min_scale)!r}\n"
+        f"_max_scale = {float(qgis_max_scale)!r}\n"
+        "_existing = None\n"
+        "for _l in QgsProject.instance().mapLayers().values():\n"
+        "    if _l.customProperty('gis_utils/wms_id') == _wms_id:\n"
+        "        _existing = _l\n"
+        "        break\n"
+        "if _existing is not None:\n"
+        "    result = {'added': False, 'already_present': True, 'id': _existing.id()}\n"
+        "else:\n"
+        "    _layer = QgsRasterLayer(_uri, _name, 'wms')\n"
+        "    if not _layer.isValid():\n"
+        "        result = {'added': False, 'error': _layer.error().summary() or 'invalid layer'}\n"
+        "    else:\n"
+        "        _layer.setCustomProperty('gis_utils/wms_id', _wms_id)\n"
+        "        if _enable_scale:\n"
+        "            _layer.setScaleBasedVisibility(True)\n"
+        "            _layer.setMinimumScale(_min_scale)\n"
+        "            _layer.setMaximumScale(_max_scale)\n"
+        "        QgsProject.instance().addMapLayer(_layer)\n"
+        "        result = {'added': True, 'id': _layer.id(), "
+        "                  'min_scale': _min_scale, 'max_scale': _max_scale}\n"
+    )
+    try:
+        resp = client.execute_code(code)
+        inner = {}
+        if isinstance(resp, dict):
+            r = resp.get("result")
+            if isinstance(r, dict):
+                inner = r.get("result") if isinstance(r.get("result"), dict) else r
+        if inner.get("error"):
+            print(f"[qgis_bridge] add_wms_layer: {inner['error']}")
+            return False
+        return True
+    except Exception as exc:
+        print(f"[qgis_bridge] add_wms_layer failed: {exc}")
+        return False
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+
 def open_path(
     path: str | Path,
     *,

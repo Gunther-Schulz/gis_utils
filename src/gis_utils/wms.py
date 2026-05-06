@@ -23,6 +23,7 @@ Library (no defaults — you must specify extent or input_boundary, and one of l
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
 from typing import Any
 import io
 import re
@@ -108,6 +109,192 @@ def get_wms_max_size(wms_url: str, timeout: int = 30) -> tuple[int, int] | None:
             return (mw, mh)
     except Exception:
         pass
+    return None
+
+
+@dataclass
+class WmsLayerMeta:
+    """Metadata for a single WMS layer extracted from GetCapabilities."""
+    name: str
+    title: str = ""
+    queryable: bool = False
+    # WMS 1.3.0 scale denominators: Min = smallest denom (most zoomed-in),
+    # Max = largest denom (most zoomed-out). Both None = no server-side limit.
+    # Note inversion vs QGIS API: WMS Min → QGIS setMaximumScale,
+    #                             WMS Max → QGIS setMinimumScale.
+    min_scale_denominator: float | None = None
+    max_scale_denominator: float | None = None
+    default_style: str | None = None
+    available_styles: list[str] = field(default_factory=list)
+    available_crs: list[str] = field(default_factory=list)
+    # EX_GeographicBoundingBox in WGS84: (west, south, east, north)
+    geographic_bounding_box: tuple[float, float, float, float] | None = None
+
+
+def _local_tag(elem: ET.Element) -> str:
+    return elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+
+
+def _find_layer(elem: ET.Element, target: str, inherited: dict) -> WmsLayerMeta | None:
+    """Recursively walk <Layer> elements; returns meta for layer matching ``target``.
+
+    ``inherited`` carries CRS/styles/scale/bbox/queryable from ancestors per
+    WMS 1.3.0 §7.2.4.8: CRS and Style are cumulative (children add to parent's
+    set); scale denominators and bounding boxes are replaced when redefined,
+    inherited when omitted; ``queryable`` is inherited from the nearest
+    ancestor that sets it.
+    """
+    if _local_tag(elem) != "Layer":
+        return None
+
+    # Build current-layer accumulators on top of inherited
+    crses = list(inherited.get("crses", []))
+    inherited_styles = list(inherited.get("styles", []))
+    min_sd = inherited.get("min_sd")
+    max_sd = inherited.get("max_sd")
+    bbox = inherited.get("bbox")
+    queryable = inherited.get("queryable", False)
+    if elem.get("queryable") is not None:
+        queryable = elem.get("queryable") in ("1", "true", "True")
+
+    name = None
+    title = ""
+    own_min_sd = None
+    own_max_sd = None
+    own_bbox = None
+    own_styles: list[str] = []
+    children: list[ET.Element] = []
+
+    for child in list(elem):
+        t = _local_tag(child)
+        if t == "Name":
+            name = (child.text or "").strip()
+        elif t == "Title":
+            title = (child.text or "").strip()
+        elif t == "CRS" and child.text:
+            v = child.text.strip()
+            if v and v not in crses:
+                crses.append(v)
+        elif t == "Style":
+            sn = None
+            for sc in child:
+                if _local_tag(sc) == "Name" and sc.text:
+                    sn = sc.text.strip()
+                    break
+            if sn and sn not in own_styles:
+                own_styles.append(sn)
+        elif t == "MinScaleDenominator" and child.text:
+            try:
+                own_min_sd = float(child.text.strip())
+            except ValueError:
+                pass
+        elif t == "MaxScaleDenominator" and child.text:
+            try:
+                own_max_sd = float(child.text.strip())
+            except ValueError:
+                pass
+        elif t == "EX_GeographicBoundingBox":
+            try:
+                west = float(child.findtext("{*}westBoundLongitude") or "")
+            except ValueError:
+                west = None
+            # ElementTree findtext doesn't honor {*} wildcard — walk manually.
+            vals = {}
+            for sc in child:
+                vals[_local_tag(sc)] = (sc.text or "").strip()
+            try:
+                w = float(vals.get("westBoundLongitude", ""))
+                s = float(vals.get("southBoundLatitude", ""))
+                e_ = float(vals.get("eastBoundLongitude", ""))
+                n = float(vals.get("northBoundLatitude", ""))
+                own_bbox = (w, s, e_, n)
+            except ValueError:
+                pass
+        elif t == "Layer":
+            children.append(child)
+
+    if own_min_sd is not None:
+        min_sd = own_min_sd
+    if own_max_sd is not None:
+        max_sd = own_max_sd
+    if own_bbox is not None:
+        bbox = own_bbox
+
+    # Style precedence: own styles first (most specific to this layer), then
+    # inherited from ancestors. Default = first own, else first inherited.
+    merged_styles = list(own_styles)
+    for s in inherited_styles:
+        if s not in merged_styles:
+            merged_styles.append(s)
+
+    if name == target:
+        default_style = merged_styles[0] if merged_styles else None
+        return WmsLayerMeta(
+            name=name,
+            title=title,
+            queryable=queryable,
+            min_scale_denominator=min_sd,
+            max_scale_denominator=max_sd,
+            default_style=default_style,
+            available_styles=merged_styles,
+            available_crs=crses,
+            geographic_bounding_box=bbox,
+        )
+
+    next_inherited = {
+        "crses": crses,
+        "styles": merged_styles,
+        "min_sd": min_sd,
+        "max_sd": max_sd,
+        "bbox": bbox,
+        "queryable": queryable,
+    }
+    for child in children:
+        hit = _find_layer(child, target, next_inherited)
+        if hit is not None:
+            return hit
+    return None
+
+
+def get_wms_layer_metadata(
+    wms_url: str,
+    layer: str,
+    version: str = "1.3.0",
+    timeout: int = 30,
+) -> WmsLayerMeta | None:
+    """Fetch WMS GetCapabilities and return metadata for one layer.
+
+    Returns ``None`` if the layer is not found or Capabilities cannot be
+    fetched. Honors WMS 1.3.0 inheritance: parent CRS/styles/scale/bbox
+    propagate to children unless the child redefines them (scale, bbox) or
+    extends them (CRS, styles).
+
+    The returned ``min_scale_denominator`` / ``max_scale_denominator`` are
+    WMS-spec values: Min = smallest denominator (most zoomed-in extent at
+    which the layer is shown), Max = largest denominator. Map to QGIS via
+    ``setMaximumScale(min_sd)`` / ``setMinimumScale(max_sd)``.
+    """
+    params = {"SERVICE": "WMS", "VERSION": version, "REQUEST": "GetCapabilities"}
+    try:
+        r = requests.get(wms_url, params=params, timeout=timeout)
+        r.raise_for_status()
+        root = ET.fromstring(r.content)
+    except Exception:
+        return None
+
+    # Root <WMS_Capabilities> → <Capability> → <Layer>
+    capability = None
+    for c in root:
+        if _local_tag(c) == "Capability":
+            capability = c
+            break
+    if capability is None:
+        return None
+    for c in capability:
+        if _local_tag(c) == "Layer":
+            hit = _find_layer(c, layer, {})
+            if hit is not None:
+                return hit
     return None
 
 
