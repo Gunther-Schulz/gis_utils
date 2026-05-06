@@ -183,6 +183,22 @@ These are judgement calls — propose if asked, but don't auto-apply:
 - Scale-bar position (often top-right corner)
 - Whether the map should be full-bleed or insetted
 
+### Hand-off suggestions (PyQGIS hard, QGIS UI easy)
+
+Some adjustments are noticeably faster in QGIS UI than via PyQGIS — when the work below is in front of you, **suggest** the hand-off rather than burning round-trips on it. The user decides; just flag it.
+
+| Operation | PyQGIS friction | UI alternative (~30 s) |
+|---|---|---|
+| **Curating a layout legend** — drop entries, reorder, rename | `QgsLayoutItemLegend.setCustomLayerTree` doesn't exist in some QGIS versions; modifying `model().rootGroup()` and toggling `autoUpdateModel` interacts subtly with `legendFilterByMapEnabled` and frame sizing — easy to end up with only one entry rendering | Layout designer: open the legend item's properties → uncheck "Auto update" → drag entries / Remove unwanted ones |
+| **Multi-symbol-layer fill rendering in the legend** (hatch + solid base together) | Legend swatch may render only the first sub-layer or skip entries entirely | Designer: legend properties → adjust patch size, or set per-entry custom symbol |
+| **Item overlap fixes** (legend frame extending into info_block, info_block extending past page edge) | Iterative `attemptResize` / `attemptMove` cycles, `resizeToContents=True` interacts with z-order rendering | Designer: drag item handles, watch the canvas |
+| **Symbol fine-tuning** (exact line caps, hatch angles, semi-transparent fill blending) | Property dicts are version-sensitive and hatch params are fiddly | Designer: Properties panel — sliders + previews |
+| **Manual tracing / digitising** | Not a PyQGIS task at all | Edit mode → digitising tools |
+
+Rule of thumb: if a PyQGIS attempt loops 2–3 times without converging on the desired render, **stop and suggest the user finish in QGIS**. Once they fix it, re-export the layout via `gis_utils.qgis_bridge.render_layout_template` or via a quick `exportToPdf` / `exportToImage` snippet.
+
+This is a suggestion to the user, not a hard refusal: they may prefer to keep iterating in PyQGIS for reproducibility (e.g. CI). When they do, expand the diagnosis — print `lg.model().rootGroup().children()`, the renderer's `legendSymbolItems()`, the layout-item z-order — rather than guessing.
+
 ### Common pitfalls (lessons codified)
 
 | Symptom | Cause | Fix |
