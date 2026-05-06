@@ -75,6 +75,7 @@ def list_templates() -> list[dict[str, Any]]:
 from gis_utils.templates import (  # noqa: E402, F401
     apply_qml_style,
     buffer_zones,
+    clip_to_flurstuecke,
     concentric_point_buffers,
     distance_lines_to_nearest,
     dxf_extract_layers,
@@ -82,4 +83,5 @@ from gis_utils.templates import (  # noqa: E402, F401
     dxf_verification,
     layout_from_qpt,
     point_buffer_union,
+    polygon_difference,
 )

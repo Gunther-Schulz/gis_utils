@@ -36,6 +36,7 @@ def find_flurstuecke(
     gemarkung: str | None = None,
     flur: str | None = None,
     nummern: list[str] | None = None,
+    oids: list[str] | None = None,
     gemeinde: str | None = None,
     gemarkung_schluessel: str | None = None,
     gemeinde_schluessel: str | None = None,
@@ -46,19 +47,25 @@ def find_flurstuecke(
     output_path: "Path | str | None" = None,
     project_dir: "Path | str | None" = None,
 ) -> "gpd.GeoDataFrame":
-    """Find Flurstücke by Gemarkung, Flur, and Nummer(n).
+    """Find Flurstücke by Gemarkung, Flur, Nummer(n), or OID.
 
     Two modes of operation:
     1. With gemarkung_schluessel or gemeinde_schluessel: uses WFS stored
        queries for efficient server-side filtering.
     2. With extent/input_boundary: downloads all Flurstücke in the area,
-       then filters client-side by gemarkung/flur/nummer.
+       then filters client-side by gemarkung/flur/nummer/oid.
+
+    OID filter is client-side because MV ave:Flurstueck rejects
+    server-side OGC filters on `oid` (returns HTTP 400). The bbox path
+    is the workable path; provide extent or input_boundary alongside oids.
 
     Args:
         state: Bundesland code ('sh', 'mv', etc.).
         gemarkung: Gemarkung name for client-side filtering.
         flur: Flur number for client-side filtering.
         nummern: Flurstück numbers (e.g. ['78/2']). Parsed automatically.
+        oids: ALKIS OIDs (e.g. ['DEMVAL04000wCbubFL']). Client-side filtered
+            after a bbox download — requires extent or input_boundary.
         gemeinde: Gemeinde name for client-side filtering.
         gemarkung_schluessel: Gemarkungsnummer for stored query (e.g. '010266').
         gemeinde_schluessel: Gemeindeschlüssel for stored query (e.g. '01061108').
@@ -151,6 +158,16 @@ def find_flurstuecke(
         filter=client_filter if client_filter else None,
     )
 
+    # --- Client-side filter for specific OIDs ---
+    if oids and len(gdf) > 0:
+        oid_col = query_fields.get("oid", "oid")
+        if oid_col not in gdf.columns:
+            raise ValueError(
+                f"oids filter requested but column '{oid_col}' not in WFS response. "
+                f"Available columns: {list(gdf.columns)}"
+            )
+        gdf = gdf[gdf[oid_col].isin(oids)].copy()
+
     # --- Client-side filter for specific Flurstück numbers ---
     if nummern and len(gdf) > 0:
         z_col = query_fields.get("zaehler", "flstnrzae")
@@ -176,6 +193,8 @@ def find_flurstuecke(
             parts.append(f"Flur={flur}")
         if nummern:
             parts.append(f"Nummern={nummern}")
+        if oids:
+            parts.append(f"OIDs={oids}")
         if gemeinde:
             parts.append(f"Gemeinde={gemeinde}")
         print(f"[alkis] Warning: no Flurstücke found for {', '.join(parts)}")
