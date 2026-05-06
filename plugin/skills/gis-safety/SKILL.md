@@ -38,3 +38,11 @@ Before writing code, use the `gis-utils` MCP tools to discover available functio
 - `mcp__gis-utils__list_recipes` — find data source recipes
 - `mcp__gis-utils__list_templates` — find workflow templates
 - `mcp__gis-utils__get_function_help` — get detailed function docs
+
+### WMS layers in QGIS — set extent close after add
+
+When adding a WMS raster (DOP, ALKIS, etc.) to a fresh QGIS project: **set the canvas extent to a close-up area (a few km) AFTER `addMapLayer` and after any `refreshAllLayers()`**. Auto-zoom to the layer's full extent (e.g. a Bundesland-wide DOP) usually exceeds the service's scale-denominator limit and the canvas stays blank.
+
+**How to apply:** add the layer → compute target extent (project AOI / city centre + ~5 km box) → `iface.mapCanvas().setExtent(rect)` as the **last** step (or use the `mcp__qgis__set_canvas_extent` MCP tool). If a refresh is needed in between, set the extent twice — once before and once after refresh. Always verify with a screenshot before declaring done.
+
+For German DOP / ALKIS WMS specifically: parse `GetCapabilities` as XML (not regex) to find `<Layer><Name>` plus required `<Style><Name>` — some MV services (e.g. `adv_dop`) require an explicit non-empty `styles=` parameter (use `palette_rgb` for `mv_dop`).
