@@ -197,6 +197,98 @@ def _recipe_matches(recipe: Recipe, term: str) -> bool:
     return False
 
 
+def qgis_uri(
+    recipe_name: str,
+    *,
+    layer: str | None = None,
+    crs: str | None = None,
+    image_format: str = "image/png",
+    wfs_version: str = "auto",
+    project_dir: Path | str | None = None,
+) -> str:
+    """Build a QGIS layer URI for a WMS / WFS / XYZ recipe.
+
+    Lets QGIS-side code (e.g. the qgis-mcp ``add_web_layer`` tool) consume
+    recipes without hand-rolling URI strings. Single-layer recipes pick up
+    the layer from ``connection.layer``; multi-layer recipes require an
+    explicit ``layer`` argument matching a key in ``recipe.layers``.
+
+    Args:
+        recipe_name: Recipe identifier (e.g. ``"mv_dop"``).
+        layer: Layer alias (multi-layer recipes) or override (single-layer).
+        crs: Override CRS; defaults to ``connection.crs``.
+        image_format: WMS image format. Default ``"image/png"``.
+        wfs_version: WFS version string. Default ``"auto"``.
+        project_dir: Project root, for picking up project-local recipes.
+
+    Returns:
+        URI string suitable for ``QgsRasterLayer`` / ``QgsVectorLayer``
+        constructors with ``provider="wms"`` / ``"WFS"``, or for the
+        qgis-mcp ``add_web_layer`` tool's ``url`` parameter.
+
+    Raises:
+        ValueError: For unsupported connection types, missing layer info,
+            or unknown recipe.
+
+    Example::
+
+        from gis_utils.recipes import qgis_uri
+        # via qgis-mcp:
+        add_web_layer(url=qgis_uri("mv_dop"), service="wms", name="DOP MV")
+        # via PyQGIS directly:
+        QgsRasterLayer(qgis_uri("mv_dop"), "DOP MV", "wms")
+    """
+    proj = Path(project_dir) if project_dir else None
+    recipe = load_recipe(recipe_name, project_dir=proj)
+    conn = recipe.connection or {}
+    conn_type = (conn.get("type") or "").lower()
+    base_url = conn.get("url", "")
+    effective_crs = crs or conn.get("crs") or "EPSG:3857"
+
+    if conn_type == "wms":
+        if recipe.is_multi_layer:
+            if not layer:
+                raise ValueError(
+                    f"Recipe '{recipe_name}' is multi-layer; pass layer=<alias>. "
+                    f"Available: {recipe.layer_aliases()}"
+                )
+            layer_cfg = recipe.layers.get(layer, {})
+            wms_layer = layer_cfg.get("wms_layer") or layer
+        else:
+            wms_layer = layer or conn.get("layer")
+        if not wms_layer:
+            raise ValueError(f"Recipe '{recipe_name}': no WMS layer name")
+        return (
+            f"crs={effective_crs}&format={image_format}"
+            f"&layers={wms_layer}&styles&url={base_url}"
+        )
+
+    if conn_type == "wfs":
+        if recipe.is_multi_layer:
+            if not layer:
+                raise ValueError(
+                    f"Recipe '{recipe_name}' is multi-layer; pass layer=<alias>. "
+                    f"Available: {recipe.layer_aliases()}"
+                )
+            layer_cfg = recipe.layers.get(layer, {})
+            wfs_layer = layer_cfg.get("wfs_layer") or layer
+        else:
+            wfs_layer = layer or conn.get("layer")
+        if not wfs_layer:
+            raise ValueError(f"Recipe '{recipe_name}': no WFS layer name")
+        return (
+            f"pagingEnabled='true' srsname='{effective_crs}' "
+            f"typename='{wfs_layer}' url='{base_url}' version='{wfs_version}'"
+        )
+
+    if conn_type == "xyz":
+        return f"type=xyz&url={base_url}"
+
+    raise ValueError(
+        f"qgis_uri does not support connection type {conn_type!r} for recipe '{recipe_name}'"
+    )
+
+
 def resolve_connection(recipe: Recipe) -> dict[str, Any]:
     """Resolve recipe connection to kwargs dict.
 

@@ -435,14 +435,28 @@ project:
   name: {name}
   conda_env: gis
 
-steps:
-  - name: Example step
-    script: scripts/example.py
-    run: auto
-    # outputs:
-    #   - output/result.shp
-    # depends_on:
-    #   - Other step name
+# Define your pipeline steps below. Run with `gis-workflow run`.
+# Discover available templates via the gis-utils MCP tool `list_templates`
+# or `gis-workflow catalog`.
+#
+# Example template-based step:
+#
+#   - name: Build boundary polygon
+#     template: lines_to_polygon
+#     params:
+#       input: Grundlagen/boundary.shp
+#       crs: "EPSG:25833"
+#     output: Shapes/boundary.gpkg
+#
+# Example script-based step:
+#
+#   - name: Custom processing
+#     script: scripts/my_script.py
+#     output: Shapes/result.gpkg
+#     depends_on:
+#       - Build boundary polygon
+
+steps: []
 """
 
 def init_project(project_dir: str | Path) -> None:

@@ -130,8 +130,12 @@ def find_flurstuecke(
         stored_query_params = {sq["param_field"]: gemeinde_schluessel}
     elif _extent is None:
         raise ValueError(
-            "Either provide gemarkung_schluessel/gemeinde_schluessel for "
-            "server-side query, or extent/input_boundary for spatial query."
+            "find_flurstuecke needs a search scope. Provide ONE of:\n"
+            "  - input_boundary: path to a shapefile/gpkg (RECOMMENDED — fastest for small project areas)\n"
+            "  - extent: (minx, miny, maxx, maxy) tuple in your project CRS\n"
+            "  - gemarkung_schluessel: numerical Gemarkungsnummer (e.g. '130765') — for whole-Gemarkung scans\n"
+            "  - gemeinde_schluessel: numerical Gemeindeschlüssel — for whole-Gemeinde scans\n"
+            "(gemarkung/flur/nummern/oids alone are client-side filters and require one of the above to scope the WFS query.)"
         )
 
     # --- Build client-side filter ---
