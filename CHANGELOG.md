@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`reporting.conflict_matrix`** — per source feature × named target: overlap area, else minimum distance. Generalizes `intersection_areas` to several named targets and to the no-overlap (distance) case. Reusable for any proximity/overlap conflict analysis (Baumkronen ↔ Bauteile, Vorhaben ↔ Schutzgebiete, …). Returns a tidy DataFrame (`source, source_area_m2, target, overlap_m2, distance_m, contact`).
+- **`workflow-authoring` skill — "Reports are steps too" convention** — a report whose figures derive from the geodata is a pipeline step generated mechanically (static prose + computed values via `conflict_matrix` / `area_report` / `markdown_table`), never hand-typed numbers. Description widened to trigger on report / write-up requests.
 - **`recipes/mv_dop.yaml`** — MV DOP20 Open Data WMS recipe (© GeoBasis-DE/M-V). Pair to `sh_dop20`; supports EPSG:25833 natively.
 - **`templates/lines_to_polygon`** — generic counterpart to `dxf_lines_to_polygon`; converts (Multi)LineString features from any OGR source (SHP/GPKG/GeoJSON) into a closed polygon.
 - **`templates/fetch_flurstuecke`** — thin workflow wrapper around `find_flurstuecke()` so ALKIS parcel lookups can live in `workflow.yaml` as a one-step template.

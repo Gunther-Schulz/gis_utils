@@ -64,6 +64,61 @@ def intersection_areas(
     return df
 
 
+def conflict_matrix(
+    sources: gpd.GeoDataFrame,
+    targets: "dict[str, Any]",
+    *,
+    source_id_col: str | None = None,
+    min_area_m2: float = 1e-6,
+) -> pd.DataFrame:
+    """Per source feature × named target: overlap area, else minimum distance.
+
+    Generalizes :func:`intersection_areas` to several named targets and to the
+    no-overlap case (returns the distance). Reusable for any proximity/overlap
+    conflict analysis — Baumkronen ↔ Bauteile, Vorhaben ↔ Schutzgebiete,
+    Modulfläche ↔ Pufferzonen, … . All inputs must share one projected CRS (m).
+
+    Args:
+        sources: features to assess (crowns, project area, modules, …).
+        targets: ``{name: Shapely geometry OR GeoDataFrame}`` per category;
+            a GeoDataFrame is unioned to a single geometry.
+        source_id_col: column labelling each source; None → the row index.
+        min_area_m2: overlaps at/below this count as no contact (→ distance).
+
+    Returns:
+        Tidy DataFrame, one row per (source, target):
+        ``source, source_area_m2, target, overlap_m2, distance_m, contact``.
+    """
+    from shapely.ops import unary_union
+
+    norm = {
+        name: (unary_union(list(t.geometry)) if isinstance(t, gpd.GeoDataFrame) else t)
+        for name, t in targets.items()
+    }
+    rows: list[dict[str, Any]] = []
+    for idx, row in sources.iterrows():
+        sg = row.geometry
+        if sg is None or sg.is_empty:
+            continue
+        sid = row[source_id_col] if (source_id_col and source_id_col in sources.columns) else idx
+        for name, tg in norm.items():
+            if tg is None or tg.is_empty:
+                continue
+            inter = sg.intersection(tg)
+            area = inter.area
+            contact = area > min_area_m2
+            rows.append({
+                "source": sid,
+                "source_area_m2": round(sg.area, 2),
+                "target": name,
+                "overlap_m2": round(area, 2) if contact else 0.0,
+                "distance_m": 0.0 if contact else round(sg.distance(tg), 2),
+                "contact": bool(contact),
+            })
+    return pd.DataFrame(rows, columns=[
+        "source", "source_area_m2", "target", "overlap_m2", "distance_m", "contact"])
+
+
 def area_by_category(
     target_gdf: gpd.GeoDataFrame,
     category_gdf: gpd.GeoDataFrame,

@@ -43,6 +43,7 @@ from gis_utils.geometry import (
 from gis_utils.reporting import (
     area_by_category,
     area_report,
+    conflict_matrix,
     intersection_areas,
 )
 from gis_utils.alkis import find_flurstuecke
@@ -102,6 +103,7 @@ __all__ = [
     # Reporting
     "area_report",
     "area_by_category",
+    "conflict_matrix",
     "intersection_areas",
     # Recipes
     "Recipe",

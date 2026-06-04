@@ -1,6 +1,6 @@
 ---
 name: workflow-authoring
-description: This skill should be used when the user asks to "create a workflow", "add a step", "edit workflow.yaml", "run the pipeline", "initialize a project", "use a template", or any task involving gis-workflow CLI or workflow.yaml configuration.
+description: This skill should be used when the user asks to "create a workflow", "add a step", "edit workflow.yaml", "run the pipeline", "initialize a project", "use a template", "generate a report", "write up the results", or any task involving gis-workflow CLI, workflow.yaml configuration, or producing a project report from the geodata.
 license: MIT
 ---
 
@@ -18,6 +18,10 @@ gis-workflow run --step "Name"     # run single step + dependencies
 ### Discovery first, then lock the pipeline
 
 Use ad-hoc scripts only while *discovering* the data (unknown CRS, layer semantics, georeferencing). Once the method is known, move every step into `workflow.yaml` + `scripts/` — then requirement changes (drop a layer, change CRS, add an analysis) become a one-line edit + `gis-workflow run`, not a manual redo.
+
+### Reports are steps too — never hand-type numbers
+
+A report (MD/PDF) whose figures derive from the geodata is a pipeline step, not a hand-written document — any number typed by hand goes stale silently the moment the data changes, and nothing flags it. Generate it mechanically: static/templated prose with computed values filled from the analysis layers (`conflict_matrix`, `area_report`, `area_by_category`, `intersection_areas`, `markdown_table` in `gis_utils.reporting` / `md_table`). Test: the only edits a data change requires are to the data + `gis-workflow run` — if a data change leaves a stale figure anywhere in the report, the report is not yet a step. Applies to every project, not just the one at hand.
 
 ### workflow.yaml format
 
