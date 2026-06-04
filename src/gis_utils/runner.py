@@ -91,11 +91,30 @@ def _collect_outputs(step: dict) -> list[str]:
     return outputs
 
 
+def _newest_mtime(path: Path) -> float:
+    """Newest mtime at/under path (file → its mtime; dir → max over files).
+
+    Returns 0.0 if the path is missing — a declared input that doesn't exist
+    can't make outputs stale.
+    """
+    if not path.exists():
+        return 0.0
+    if path.is_file():
+        return path.stat().st_mtime
+    mtimes = [p.stat().st_mtime for p in path.rglob("*") if p.is_file()]
+    return max(mtimes) if mtimes else path.stat().st_mtime
+
+
 def should_skip(step: dict, project_dir: Path) -> bool:
     """Check if an 'auto' step can be skipped.
 
-    Skip if all outputs exist. For recipe steps with input_boundary,
-    also check that outputs are newer than the input (re-run on scope change).
+    Skip only if all outputs exist AND no declared input is newer than the
+    oldest output (make-style staleness). Inputs are taken from ``inputs:``
+    (any step) plus, for recipe steps, ``input_boundary:`` (the scope file).
+    Declaring a step's real input files — including upstream steps' outputs —
+    lets a single ``gis-workflow run`` re-run the step, and cascade downstream,
+    when the data changes, instead of skipping on mere output existence.
+    Without declared inputs the old behaviour stands: skip if outputs exist.
     """
     if step.get("run", "auto") != "auto":
         return False
@@ -106,16 +125,16 @@ def should_skip(step: dict, project_dir: Path) -> bool:
     output_paths = [project_dir / out for out in outputs]
     if not all(p.exists() for p in output_paths):
         return False
+    oldest_output = min(p.stat().st_mtime for p in output_paths)
 
-    # For recipe steps: check if input_boundary is newer than outputs
+    declared_inputs = list(step.get("inputs", []))
+    # Recipe scope file behaves as an input too (back-compat).
     input_boundary = step.get("input_boundary")
     if input_boundary and step.get("recipe"):
-        input_path = project_dir / input_boundary
-        if input_path.exists():
-            input_mtime = input_path.stat().st_mtime
-            oldest_output = min(p.stat().st_mtime for p in output_paths)
-            if input_mtime > oldest_output:
-                return False  # input changed — re-run
+        declared_inputs.append(input_boundary)
+    for inp in declared_inputs:
+        if _newest_mtime(project_dir / inp) > oldest_output:
+            return False  # input changed — re-run
 
     return True
 

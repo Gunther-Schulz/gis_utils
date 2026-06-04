@@ -21,7 +21,7 @@ Use ad-hoc scripts only while *discovering* the data (unknown CRS, layer semanti
 
 ### Reports are steps too — never hand-type numbers
 
-A report (MD/PDF) whose figures derive from the geodata is a pipeline step, not a hand-written document — any number typed by hand goes stale silently the moment the data changes, and nothing flags it. Generate it mechanically: static/templated prose with computed values filled from the analysis layers (`conflict_matrix`, `area_report`, `area_by_category`, `intersection_areas`, `markdown_table` in `gis_utils.reporting` / `md_table`). Test: the only edits a data change requires are to the data + `gis-workflow run` — if a data change leaves a stale figure anywhere in the report, the report is not yet a step. Applies to every project, not just the one at hand.
+A report (MD/PDF) whose figures derive from the geodata is a pipeline step, not a hand-written document — any number typed by hand goes stale silently the moment the data changes, and nothing flags it. Generate it mechanically: static/templated prose with computed values filled from the analysis layers (`conflict_matrix`, `area_report`, `area_by_category`, `intersection_areas`, `markdown_table` in `gis_utils.reporting` / `md_table`). Test: the only edits a data change requires are to the data + `gis-workflow run` — if a data change leaves a stale figure anywhere in the report, the report is not yet a step. Declare the report's data files under `inputs:` (see Step execution rules) or `auto` skips it and the edit is silently ignored. Applies to every project, not just the one at hand.
 
 ### workflow.yaml format
 
@@ -52,6 +52,7 @@ Steps can use **scripts** (Python files) or **templates** (built-in patterns):
 
 **Step execution rules:**
 - `run: auto` (default) — skipped if outputs exist and are up-to-date
+- `inputs:` — files the step reads (incl. upstream steps' outputs). Under `run: auto` the step re-runs when any input is newer than its outputs (make-style staleness), and re-runs cascade downstream in one `gis-workflow run`. Declare a step's real inputs so a data edit + `gis-workflow run` regenerates everything; without it, `auto` skips whenever outputs merely exist — so an edited input (e.g. a re-digitized shapefile) is silently ignored.
 - `run: always` — executes every time
 - Dependencies resolved automatically (topological sort)
 
