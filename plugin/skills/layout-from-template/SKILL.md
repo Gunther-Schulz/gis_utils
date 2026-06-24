@@ -200,6 +200,7 @@ This is a suggestion to the user, not a hard refusal: they may prefer to keep it
 | Auftraggeber-block clipped at page edge | Info-block frame too short for new content | Resize info_block, but watch the page boundary; if room is tight, shorten content rather than overflow |
 | Map renders canvas state, not the theme | `followVisibilityPreset` not set on the map item | `m.setFollowVisibilityPreset(True); m.setFollowVisibilityPresetName(theme_name)` |
 | Scale bar's `linkedMap` resets after `loadFromTemplate` | UUID remap usually preserves the link via `templateUuid`, but always re-set defensively | `sb.setLinkedMap(m)` after layout load |
+| Title still shows `{{title}}` after filling labels | The title is an HTML **multiframe** (`QgsLayoutItemHtml`), NOT a `QgsLayoutItemLabel` — a label-only fill loop skips it (HTML labels also render async/unreliably) | Also iterate `layout.multiFrames()`: `mf.setHtml(filled); mf.loadHtml()` (synchronous). `render_layout_template` ≥ 0.11 does this |
 | Auto-fit-to-extent picks an odd scale (1:682, 1:1234, …) | Computing scale from "AOI extent ± buffer" produces non-round denominators | Pick a standard scale FIRST (1:500, 1:1000, 1:2500…), then center extent on AOI at that scale |
 
 ### Canonical paths

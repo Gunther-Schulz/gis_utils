@@ -663,6 +663,7 @@ def render_layout_template(
     code = (
         "from qgis.core import (QgsProject, QgsPrintLayout, QgsReadWriteContext,\n"
         "    QgsLayoutItemLabel, QgsLayoutItemPicture, QgsLayoutItemMap,\n"
+        "    QgsLayoutItemHtml, QgsLayoutItemLegend, QgsLayoutItemScaleBar,\n"
         "    QgsLayoutExporter)\n"
         "from qgis.PyQt.QtXml import QDomDocument\n"
         "from qgis.utils import iface\n"
@@ -702,6 +703,12 @@ def render_layout_template(
         "            for _k, _v in _values.items():\n"
         "                _t = _t.replace('{{' + _k + '}}', _v)\n"
         "            _it.setText(_t)\n"
+        "    for _mf in _layout.multiFrames():\n"          # title is often an HTML multiframe
+        "        if isinstance(_mf, QgsLayoutItemHtml):\n"
+        "            _h = _mf.html()\n"
+        "            for _k, _v in _values.items():\n"
+        "                _h = _h.replace('{{' + _k + '}}', _v)\n"
+        "            _mf.setHtml(_h); _mf.loadHtml()\n"
         "    _logo_item = _layout.itemById('auftragnehmer_logo')\n"
         "    if isinstance(_logo_item, QgsLayoutItemPicture) and _logo_path:\n"
         "        _logo_item.setPicturePath(_logo_path)\n"
@@ -715,6 +722,13 @@ def render_layout_template(
         "            _map.setKeepLayerSet(False)\n"
         "        if _extent_from_canvas:\n"
         "            _map.zoomToExtent(iface.mapCanvas().extent())\n"
+        "        _lg = _layout.itemById('legend')\n"          # re-seed legend from the map theme
+        "        if isinstance(_lg, QgsLayoutItemLegend):\n"
+        "            _lg.setLinkedMap(_map); _lg.setLegendFilterByMapEnabled(True)\n"
+        "            _lg.setAutoUpdateModel(True); _lg.refresh(); _lg.setAutoUpdateModel(False)\n"
+        "        _sb = _layout.itemById('scalebar')\n"        # re-fit scale bar to the real extent
+        "        if isinstance(_sb, QgsLayoutItemScaleBar):\n"
+        "            _sb.setLinkedMap(_map); _sb.applyDefaultSize()\n"
         "    _mgr.addLayout(_layout)\n"
         "    _exported = []\n"
         "    if _out_pdf:\n"

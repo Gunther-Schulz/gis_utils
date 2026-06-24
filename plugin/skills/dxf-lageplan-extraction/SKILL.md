@@ -89,6 +89,11 @@ layers = extract_dxf_layers(DXF_PATH, CRS, layers=["Baufeld", "Module"])
 - **Auf eine Standort-Bbox clippen** — Legenden-/Detail-/Plankopf-Geometrie liegt auf denselben Layern weit weg vom Standort.
 - Mikro-Slivers (< ~0,25 m²) aus Boolean-Ergebnissen filtern (numerische Artefakte); echte kleine Überlagerungen behalten und benennen.
 
+### 3D-Solids (ACIS) — kantig ja, gekrümmt nein
+
+DXF-`3DSOLID`s sind ACIS-Bodies. `extract_3dsolids()` projiziert die Eckpunkte → korrekte Grundfläche nur bei **kantigen** Solids (Quader: Gebäude-Sohle, Wände, Boden/Decke). **Gekrümmte** Solids (Tank/Zylinder, Kegel — oft als `spline-surface` codiert) haben kaum echte Vertices → die Projektion liefert nichts oder Müll. ezdxf bringt keinen ACIS-Kernel (kann gekrümmte Flächen nicht tesselieren), und `acis.load` / `mesh.from_body` scheitern bei manchen SAB-Encodings ganz; ein brauchbarer Open-Source-ACIS-Kernel für Python existiert nicht (Stand 2026).
+- Gekrümmtes Objekt gebraucht? → aus der **Maß-Beschriftung rekonstruieren** (`solid3d_to_circle(entity, diameter)` für Tanks/Zylinder) ODER den Solid im CAD zu 2D auflösen (FLATSHOT / Explode → Arcs/Polylinien) und 2D extrahieren. Footprint NIE aus der Vertex-Projektion eines gekrümmten Solids ziehen.
+
 ### Verifikation (immer durchziehen)
 
 Nach Extraktion:
