@@ -9,11 +9,23 @@ license: MIT
 ### Project setup
 
 ```bash
-gis-workflow init [project_dir]    # creates workflow.yaml, scripts/
+gis-workflow init [project_dir]    # scaffold canonical folders + workflow.yaml
 gis-workflow run                   # run full pipeline
 gis-workflow run --dry-run         # preview execution plan
 gis-workflow run --step "Name"     # run single step + dependencies
 ```
+
+### Standard project layout (mandatory)
+
+Every project uses these exact folder names — `gis-workflow init` creates them, defined once in `gis_utils.runner.PROJECT_DIRS`. Use them as-is; never invent variants (`Shapes/`, `Output/`, `Maps/`).
+
+| Folder | Holds |
+|---|---|
+| `Grundlagen/` | source/input data as received (DXF, DWG, plans, CSV) — never modified |
+| `Geodaten/` | generated geodata (GeoPackage, Shapefile) |
+| `Karten/` | map exports (PDF/PNG) + the QGIS project |
+| `Reports/` | generated markdown reports |
+| `scripts/` | project Python scripts run via `workflow.yaml` |
 
 ### Discovery first, then lock the pipeline
 

@@ -470,22 +470,35 @@ project:
 #     params:
 #       input: Grundlagen/boundary.shp
 #       crs: "EPSG:25833"
-#     output: Shapes/boundary.gpkg
+#     output: Geodaten/boundary.gpkg
 #
 # Example script-based step:
 #
 #   - name: Custom processing
 #     script: scripts/my_script.py
-#     output: Shapes/result.gpkg
+#     output: Geodaten/result.gpkg
 #     depends_on:
 #       - Build boundary polygon
 
 steps: []
 """
 
+# --- Canonical project directory layout (single source of truth) --------------
+# Every PBS GIS project uses these exact folder names so scripts, templates, and
+# the layout/report conventions can rely on them instead of re-inventing variants.
+# `gis-workflow init` creates them; the workflow-authoring skill documents them.
+PROJECT_DIRS: dict[str, str] = {
+    "Grundlagen": "Source/input data as received (DXF, DWG, plans, CSV) — never modified",
+    "Geodaten": "Generated geodata (GeoPackage, Shapefile)",
+    "Karten": "Map exports (PDF/PNG) and the QGIS project",
+    "Reports": "Generated markdown reports",
+    "scripts": "Project Python scripts run via workflow.yaml",
+}
+
 def init_project(project_dir: str | Path) -> None:
     """
-    Initialize a GIS project with workflow.yaml and scripts/.
+    Initialize a GIS project: create the canonical :data:`PROJECT_DIRS` layout
+    (Grundlagen/, Geodaten/, Karten/, Reports/, scripts/) and a workflow.yaml.
 
     Args:
         project_dir: Path to project directory.
@@ -493,10 +506,12 @@ def init_project(project_dir: str | Path) -> None:
     project_dir = Path(project_dir).resolve()
     name = project_dir.name
 
-    # Create scripts/
-    scripts_dir = project_dir / "scripts"
-    scripts_dir.mkdir(exist_ok=True)
-    print(f"  scripts/ — {'exists' if scripts_dir.exists() else 'created'}")
+    # Create the canonical project directory layout (PROJECT_DIRS)
+    for d in PROJECT_DIRS:
+        p = project_dir / d
+        existed = p.is_dir()
+        p.mkdir(exist_ok=True)
+        print(f"  {d}/ — {'exists' if existed else 'created'}")
 
     # Create workflow.yaml (don't overwrite)
     wf_path = project_dir / "workflow.yaml"
