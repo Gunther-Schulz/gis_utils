@@ -18,6 +18,8 @@ Apply these rules to ALL code written in gis_utils projects.
 
 ### Output & symbology conventions
 
+**Vector output = GeoPackage.** Write `.gpkg` (`gdf.to_file(path, driver="GPKG")`, `layer=` for multi-layer) under `Geodaten/`. Never default to Shapefile: it truncates field names to 10 chars (`area_label` → `area_lab`), is multi-file + single-layer, 2 GB-capped, and lacks UTF-8 / proper NULL. Shapefile only when an external recipient explicitly requires it. (Inputs received as `.shp` stay as-is — convert into `.gpkg` outputs.)
+
 When producing GeoDataFrame outputs, always explode MultiPolygons into individual Polygon features (`.explode(index_parts=False)`). MultiPolygons make styling, labeling, and area calculations unreliable in QGIS — and a multi-part result gets only one label per feature, leaving disjoint patches unlabelled; exploding gives every patch its own value.
 
 When styling outputs over a basemap (DOP, ALKIS):

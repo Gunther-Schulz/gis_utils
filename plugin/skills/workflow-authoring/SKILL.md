@@ -22,7 +22,7 @@ Every project uses these exact folder names — `gis-workflow init` creates them
 | Folder | Holds |
 |---|---|
 | `Grundlagen/` | source/input data as received (DXF, DWG, plans, CSV) — never modified |
-| `Geodaten/` | generated geodata (GeoPackage, Shapefile) |
+| `Geodaten/` | generated geodata — **GeoPackage** (`.gpkg`); Shapefile only if a recipient requires it |
 | `Karten/` | map exports (PDF/PNG) + the QGIS project |
 | `Reports/` | generated markdown reports |
 | `scripts/` | project Python scripts run via `workflow.yaml` |
