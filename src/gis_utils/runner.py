@@ -145,7 +145,13 @@ def should_skip(step: dict, project_dir: Path) -> bool:
 
 
 def run_step(step: dict, project_dir: Path, conda_env: str | None = None) -> bool:
-    """Execute a single workflow step. Returns True on success."""
+    """Execute a single workflow step. Returns True on success.
+
+    A step may override the project-wide conda env via ``conda_env:`` —
+    e.g. a PyQGIS step that needs a qgis env while the pipeline runs in a
+    plain geopandas env.
+    """
+    conda_env = step.get("conda_env") or conda_env
     # Template steps: run built-in processing templates
     if step.get("template"):
         return _run_template_step(step, project_dir)
