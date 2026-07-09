@@ -1,0 +1,24 @@
+name: ni_boris
+description: "BORIS Niedersachsen — Bodenrichtwerte (zonal und lagetypisch) der Gutachterausschüsse. LGLN OpenGeoData, WFS. © GeoBasis-DE/LGLN."
+tags: [boris, bodenrichtwert, grundstückswert, gutachterausschuss, NI, niedersachsen, open-data]
+
+connection:
+  type: wfs
+  url: "https://opendata.lgln.niedersachsen.de/doorman/noauth/boris_wfs"
+  version: "2.0.0"
+  crs: "EPSG:25832"
+  # OGR's FES-BBOX-Filter adressiert die Geometrie als boris:position, sie
+  # liegt aber im adv:-Namespace (adv:position) — der Server liefert dann
+  # stillschweigend 0 Features. Plain-KVP-BBOX funktioniert.
+  bbox_kvp: true
+
+layers:
+  bodenrichtwert_zonal:
+    wfs_layer: "boris:BR_BodenrichtwertZonal"
+    title: "Bodenrichtwertzonen (flächenhaft)"
+    tags: [bodenrichtwert, zone, polygon]
+
+  bodenrichtwert_lagetypisch:
+    wfs_layer: "boris:BR_BodenrichtwertLagetypisch"
+    title: "Lagetypische Bodenrichtwerte"
+    tags: [bodenrichtwert, lagetypisch]

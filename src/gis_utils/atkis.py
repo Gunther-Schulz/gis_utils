@@ -387,21 +387,21 @@ def _fetch_features_by_ids(
 ) -> dict[str, dict[str, str]]:
     """Fetch features by gml:id (URN). Returns ``{urn: {attr: text}}``.
 
-    Issues batched OGC ResourceId filter queries — efficient for hundreds of
-    URNs.  Geometry is ignored; only scalar text attributes are returned.
+    Issues batched WFS 2.0 ``RESOURCEID`` KVP queries — efficient for hundreds
+    of URNs.  Geometry is ignored; only scalar text attributes are returned.
+
+    Uses the KVP parameter instead of an XML ResourceId filter: some
+    infrastructures (e.g. LGLN Niedersachsen behind the niedersachsen.de WAF)
+    reject XML in query parameters outright.
     """
     if not urns:
         return {}
     out: dict[str, dict[str, str]] = {}
     for i in range(0, len(urns), batch_size):
         batch = urns[i:i + batch_size]
-        rid_xml = "".join(f'<ResourceId rid="{u}"/>' for u in batch)
-        filter_xml = (
-            f'<Filter xmlns="http://www.opengis.net/fes/2.0">{rid_xml}</Filter>'
-        )
         r = requests.get(wfs_url, params={
             "service": "WFS", "request": "GetFeature", "version": "2.0.0",
-            "typeNames": layer, "filter": filter_xml,
+            "typeNames": layer, "resourceID": ",".join(batch),
         }, timeout=REQUEST_TIMEOUT)
         r.raise_for_status()
         root = ET.fromstring(r.content)

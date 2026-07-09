@@ -1,0 +1,15 @@
+name: ni_dtk50
+description: "NI DTK50 — Digitale Topographische Karte 1:50.000 Niedersachsen, Farbausgabe. LGLN OpenGeoData. Graustufen-Variante: layer ni_dtk50_grau. Weitere Maßstäbe: ni_dtk25. © GeoBasis-DE/LGLN."
+tags: [dtk, tk, topographische-karte, tk50, basemap, NI, niedersachsen, open-data]
+
+connection:
+  type: wms
+  url: "https://opendata.lgln.niedersachsen.de/doorman/noauth/dtk50_wms"
+  layer: "ni_dtk50_farbe"
+  # Alternativ: "ni_dtk50_grau" (Graustufen)
+  crs: "EPSG:25832"
+
+detection:
+  mode: areas
+  area_background: alpha
+  download_only: true

@@ -1,0 +1,14 @@
+name: ni_dop
+description: "NI DOP20 — Digitale Orthophotos Niedersachsen, 20cm Bodenauflösung, Echtfarben (RGB). LGLN OpenGeoData, kein Passwort. © GeoBasis-DE/LGLN. Historische Orthophotos: doph_wms."
+tags: [dop, orthophoto, luftbild, aerial, rgb, NI, niedersachsen, open-data]
+
+connection:
+  type: wms
+  url: "https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms"
+  layer: "ni_dop20"
+  crs: "EPSG:25832"
+
+detection:
+  mode: areas
+  area_background: alpha
+  download_only: true

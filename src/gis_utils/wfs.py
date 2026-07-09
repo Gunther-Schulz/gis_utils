@@ -87,8 +87,11 @@ def _wfs_get_feature_url(
     if ogc_filter:
         params["FILTER"] = ogc_filter
     elif bbox:
+        # KVP BBOX in x,y (easting,northing) order — per WFS 2.0 spec the axis
+        # order follows the CRS definition, and EPSG's projected CRS (e.g.
+        # 25832/25833) are defined E,N. Verified against LGLN deegree services.
         minx, miny, maxx, maxy = bbox
-        params["BBOX"] = f"{miny},{minx},{maxy},{maxx},{crs}" if crs else f"{miny},{minx},{maxy},{maxx}"
+        params["BBOX"] = f"{minx},{miny},{maxx},{maxy},{crs}" if crs else f"{minx},{miny},{maxx},{maxy}"
 
     base = url.split("?")[0]
     return f"{base}?{urllib.parse.urlencode(params, quote_via=urllib.parse.quote)}"
@@ -274,6 +277,26 @@ def download(
                     gdf = gpd.read_file(sq_url, layer=_want) if _want else gpd.read_file(sq_url)
                 except Exception:
                     gdf = gpd.read_file(sq_url)
+        elif extent and _recipe and _recipe.connection.get("bbox_kvp"):
+            # Plain KVP BBOX GetFeature — for services where OGR's generated
+            # FES filter breaks (e.g. LGLN boris_wfs: geometry property lives
+            # in the adv: namespace, OGR addresses it as boris:position and
+            # the server silently matches nothing). Opt-in per recipe via
+            # connection.bbox_kvp: true.
+            kvp_url = _wfs_get_feature_url(
+                url, layer,
+                version=version,
+                bbox=extent,
+                crs=crs or "",
+                max_features=max_features,
+            )
+            _want = (layer or "").split(":")[-1]
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Field with same name")
+                try:
+                    gdf = gpd.read_file(kvp_url, layer=_want) if _want else gpd.read_file(kvp_url)
+                except Exception:
+                    gdf = gpd.read_file(kvp_url)
         else:
             # Use geopandas OGR WFS driver
             wfs_uri = f"WFS:{url}"
