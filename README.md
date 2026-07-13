@@ -105,17 +105,17 @@ skill.
 # 1. Create project folder
 mkdir "My Project"
 
-# 2. Initialize (creates workflow.yaml, scripts/, CLAUDE.md)
+# 2. Initialize — creates the canonical folders (Grundlagen/, Geodaten/,
+#    Karten/, Reports/, scripts/) and a workflow.yaml
 gis-workflow init "My Project"
 
-# 3. Edit CLAUDE.md — fill in the "Project notes" section with:
-#    - CRS (e.g. EPSG:25832)
-#    - Data sources and locations
-#    - Any coordinate quirks or project-specific context
+# 3. Edit workflow.yaml — define your pipeline steps. Discover available
+#    templates and recipes with `gis-workflow catalog` or the MCP
+#    `catalog`/`list_templates`/`list_recipes` tools.
 
-# 4. Start Claude session in the project folder — it reads CLAUDE.md
-#    and knows how to use gis_utils, the workflow runner, and where
-#    to put project-specific vs reusable code.
+# 4. Start a Claude session in the project folder — the gis-utils plugin
+#    skills know how to use gis_utils, the workflow runner, and where to
+#    put project-specific vs reusable code.
 ```
 
 ## Workflow runner
@@ -175,7 +175,9 @@ All common functions importable from top level: `from gis_utils import ...`
 
 ## Full API reference
 
-See [CLAUDE.md](CLAUDE.md) for the complete API with signatures, or use the MCP `catalog` tool for live discovery.
+For the complete API with signatures, use the MCP `catalog` and
+`get_function_help` tools for live discovery, or run `gis-workflow catalog`
+from the CLI.
 
 ## Development
 
