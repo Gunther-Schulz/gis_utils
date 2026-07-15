@@ -1,0 +1,1530 @@
+- aciCode: 1
+  name: red
+  rgb:
+  - 255
+  - 0
+  - 0
+- aciCode: 2
+  name: yellow
+  rgb:
+  - 255
+  - 255
+  - 0
+- aciCode: 3
+  name: green
+  rgb:
+  - 0
+  - 255
+  - 0
+- aciCode: 4
+  name: cyan
+  rgb:
+  - 0
+  - 255
+  - 255
+- aciCode: 5
+  name: blue
+  rgb:
+  - 0
+  - 0
+  - 255
+- aciCode: 6
+  name: magenta
+  rgb:
+  - 255
+  - 0
+  - 255
+- aciCode: 7
+  name: white
+  rgb:
+  - 255
+  - 255
+  - 255
+- aciCode: 8
+  name: medium-grey
+  rgb:
+  - 128
+  - 128
+  - 128
+- aciCode: 9
+  name: light-grey
+  rgb:
+  - 192
+  - 192
+  - 192
+- aciCode: 10
+  name: red
+  rgb:
+  - 255
+  - 0
+  - 0
+- aciCode: 11
+  name: red-light
+  rgb:
+  - 255
+  - 127
+  - 127
+- aciCode: 12
+  name: red-strong
+  rgb:
+  - 165
+  - 0
+  - 0
+- aciCode: 13
+  name: red-muted
+  rgb:
+  - 165
+  - 82
+  - 82
+- aciCode: 14
+  name: red-medium
+  rgb:
+  - 127
+  - 0
+  - 0
+- aciCode: 15
+  name: red-soft
+  rgb:
+  - 127
+  - 63
+  - 63
+- aciCode: 16
+  name: red-deep
+  rgb:
+  - 76
+  - 0
+  - 0
+- aciCode: 17
+  name: red-pale
+  rgb:
+  - 76
+  - 38
+  - 38
+- aciCode: 18
+  name: red-dark
+  rgb:
+  - 38
+  - 0
+  - 0
+- aciCode: 19
+  name: red-dusky
+  rgb:
+  - 38
+  - 19
+  - 19
+- aciCode: 20
+  name: vermilion
+  rgb:
+  - 255
+  - 63
+  - 0
+- aciCode: 21
+  name: vermilion-light
+  rgb:
+  - 255
+  - 159
+  - 127
+- aciCode: 22
+  name: vermilion-strong
+  rgb:
+  - 165
+  - 41
+  - 0
+- aciCode: 23
+  name: vermilion-muted
+  rgb:
+  - 165
+  - 103
+  - 82
+- aciCode: 24
+  name: vermilion-medium
+  rgb:
+  - 127
+  - 31
+  - 0
+- aciCode: 25
+  name: vermilion-soft
+  rgb:
+  - 127
+  - 79
+  - 63
+- aciCode: 26
+  name: vermilion-deep
+  rgb:
+  - 76
+  - 19
+  - 0
+- aciCode: 27
+  name: vermilion-pale
+  rgb:
+  - 76
+  - 47
+  - 38
+- aciCode: 28
+  name: vermilion-dark
+  rgb:
+  - 38
+  - 9
+  - 0
+- aciCode: 29
+  name: vermilion-dusky
+  rgb:
+  - 38
+  - 23
+  - 19
+- aciCode: 30
+  name: orange
+  rgb:
+  - 255
+  - 127
+  - 0
+- aciCode: 31
+  name: orange-light
+  rgb:
+  - 255
+  - 191
+  - 127
+- aciCode: 32
+  name: orange-strong
+  rgb:
+  - 165
+  - 82
+  - 0
+- aciCode: 33
+  name: orange-muted
+  rgb:
+  - 165
+  - 124
+  - 82
+- aciCode: 34
+  name: orange-medium
+  rgb:
+  - 127
+  - 63
+  - 0
+- aciCode: 35
+  name: orange-soft
+  rgb:
+  - 127
+  - 95
+  - 63
+- aciCode: 36
+  name: orange-deep
+  rgb:
+  - 76
+  - 38
+  - 0
+- aciCode: 37
+  name: orange-pale
+  rgb:
+  - 76
+  - 57
+  - 38
+- aciCode: 38
+  name: orange-dark
+  rgb:
+  - 38
+  - 19
+  - 0
+- aciCode: 39
+  name: orange-dusky
+  rgb:
+  - 38
+  - 28
+  - 19
+- aciCode: 40
+  name: amber
+  rgb:
+  - 255
+  - 191
+  - 0
+- aciCode: 41
+  name: amber-light
+  rgb:
+  - 255
+  - 223
+  - 127
+- aciCode: 42
+  name: amber-strong
+  rgb:
+  - 165
+  - 124
+  - 0
+- aciCode: 43
+  name: amber-muted
+  rgb:
+  - 165
+  - 145
+  - 82
+- aciCode: 44
+  name: amber-medium
+  rgb:
+  - 127
+  - 95
+  - 0
+- aciCode: 45
+  name: amber-soft
+  rgb:
+  - 127
+  - 111
+  - 63
+- aciCode: 46
+  name: amber-deep
+  rgb:
+  - 76
+  - 57
+  - 0
+- aciCode: 47
+  name: amber-pale
+  rgb:
+  - 76
+  - 66
+  - 38
+- aciCode: 48
+  name: amber-dark
+  rgb:
+  - 38
+  - 28
+  - 0
+- aciCode: 49
+  name: amber-dusky
+  rgb:
+  - 38
+  - 33
+  - 19
+- aciCode: 50
+  name: yellow
+  rgb:
+  - 255
+  - 255
+  - 0
+- aciCode: 51
+  name: yellow-light
+  rgb:
+  - 255
+  - 255
+  - 127
+- aciCode: 52
+  name: yellow-strong
+  rgb:
+  - 165
+  - 165
+  - 0
+- aciCode: 53
+  name: yellow-muted
+  rgb:
+  - 165
+  - 165
+  - 82
+- aciCode: 54
+  name: yellow-medium
+  rgb:
+  - 127
+  - 127
+  - 0
+- aciCode: 55
+  name: yellow-soft
+  rgb:
+  - 127
+  - 127
+  - 63
+- aciCode: 56
+  name: yellow-deep
+  rgb:
+  - 76
+  - 76
+  - 0
+- aciCode: 57
+  name: yellow-pale
+  rgb:
+  - 76
+  - 76
+  - 38
+- aciCode: 58
+  name: yellow-dark
+  rgb:
+  - 38
+  - 38
+  - 0
+- aciCode: 59
+  name: yellow-dusky
+  rgb:
+  - 38
+  - 38
+  - 19
+- aciCode: 60
+  name: lime
+  rgb:
+  - 191
+  - 255
+  - 0
+- aciCode: 61
+  name: lime-light
+  rgb:
+  - 223
+  - 255
+  - 127
+- aciCode: 62
+  name: lime-strong
+  rgb:
+  - 124
+  - 165
+  - 0
+- aciCode: 63
+  name: lime-muted
+  rgb:
+  - 145
+  - 165
+  - 82
+- aciCode: 64
+  name: lime-medium
+  rgb:
+  - 95
+  - 127
+  - 0
+- aciCode: 65
+  name: lime-soft
+  rgb:
+  - 111
+  - 127
+  - 63
+- aciCode: 66
+  name: lime-deep
+  rgb:
+  - 57
+  - 76
+  - 0
+- aciCode: 67
+  name: lime-pale
+  rgb:
+  - 66
+  - 76
+  - 38
+- aciCode: 68
+  name: lime-dark
+  rgb:
+  - 28
+  - 38
+  - 0
+- aciCode: 69
+  name: lime-dusky
+  rgb:
+  - 33
+  - 38
+  - 19
+- aciCode: 70
+  name: chartreuse
+  rgb:
+  - 127
+  - 255
+  - 0
+- aciCode: 71
+  name: chartreuse-light
+  rgb:
+  - 191
+  - 255
+  - 127
+- aciCode: 72
+  name: chartreuse-strong
+  rgb:
+  - 82
+  - 165
+  - 0
+- aciCode: 73
+  name: chartreuse-muted
+  rgb:
+  - 124
+  - 165
+  - 82
+- aciCode: 74
+  name: chartreuse-medium
+  rgb:
+  - 63
+  - 127
+  - 0
+- aciCode: 75
+  name: chartreuse-soft
+  rgb:
+  - 95
+  - 127
+  - 63
+- aciCode: 76
+  name: chartreuse-deep
+  rgb:
+  - 38
+  - 76
+  - 0
+- aciCode: 77
+  name: chartreuse-pale
+  rgb:
+  - 57
+  - 76
+  - 38
+- aciCode: 78
+  name: chartreuse-dark
+  rgb:
+  - 19
+  - 38
+  - 0
+- aciCode: 79
+  name: chartreuse-dusky
+  rgb:
+  - 28
+  - 38
+  - 19
+- aciCode: 80
+  name: emerald
+  rgb:
+  - 63
+  - 255
+  - 0
+- aciCode: 81
+  name: emerald-light
+  rgb:
+  - 159
+  - 255
+  - 127
+- aciCode: 82
+  name: emerald-strong
+  rgb:
+  - 41
+  - 165
+  - 0
+- aciCode: 83
+  name: emerald-muted
+  rgb:
+  - 103
+  - 165
+  - 82
+- aciCode: 84
+  name: emerald-medium
+  rgb:
+  - 31
+  - 127
+  - 0
+- aciCode: 85
+  name: emerald-soft
+  rgb:
+  - 79
+  - 127
+  - 63
+- aciCode: 86
+  name: emerald-deep
+  rgb:
+  - 19
+  - 76
+  - 0
+- aciCode: 87
+  name: emerald-pale
+  rgb:
+  - 47
+  - 76
+  - 38
+- aciCode: 88
+  name: emerald-dark
+  rgb:
+  - 9
+  - 38
+  - 0
+- aciCode: 89
+  name: emerald-dusky
+  rgb:
+  - 23
+  - 38
+  - 19
+- aciCode: 90
+  name: green
+  rgb:
+  - 0
+  - 255
+  - 0
+- aciCode: 91
+  name: green-light
+  rgb:
+  - 127
+  - 255
+  - 127
+- aciCode: 92
+  name: green-strong
+  rgb:
+  - 0
+  - 165
+  - 0
+- aciCode: 93
+  name: green-muted
+  rgb:
+  - 82
+  - 165
+  - 82
+- aciCode: 94
+  name: green-medium
+  rgb:
+  - 0
+  - 127
+  - 0
+- aciCode: 95
+  name: green-soft
+  rgb:
+  - 63
+  - 127
+  - 63
+- aciCode: 96
+  name: green-deep
+  rgb:
+  - 0
+  - 76
+  - 0
+- aciCode: 97
+  name: green-pale
+  rgb:
+  - 38
+  - 76
+  - 38
+- aciCode: 98
+  name: green-dark
+  rgb:
+  - 0
+  - 38
+  - 0
+- aciCode: 99
+  name: green-dusky
+  rgb:
+  - 19
+  - 38
+  - 19
+- aciCode: 100
+  name: viridian
+  rgb:
+  - 0
+  - 255
+  - 63
+- aciCode: 101
+  name: viridian-light
+  rgb:
+  - 127
+  - 255
+  - 159
+- aciCode: 102
+  name: viridian-strong
+  rgb:
+  - 0
+  - 165
+  - 41
+- aciCode: 103
+  name: viridian-muted
+  rgb:
+  - 82
+  - 165
+  - 103
+- aciCode: 104
+  name: viridian-medium
+  rgb:
+  - 0
+  - 127
+  - 31
+- aciCode: 105
+  name: viridian-soft
+  rgb:
+  - 63
+  - 127
+  - 79
+- aciCode: 106
+  name: viridian-deep
+  rgb:
+  - 0
+  - 76
+  - 19
+- aciCode: 107
+  name: viridian-pale
+  rgb:
+  - 38
+  - 76
+  - 47
+- aciCode: 108
+  name: viridian-dark
+  rgb:
+  - 0
+  - 38
+  - 9
+- aciCode: 109
+  name: viridian-dusky
+  rgb:
+  - 19
+  - 38
+  - 23
+- aciCode: 110
+  name: mint
+  rgb:
+  - 0
+  - 255
+  - 127
+- aciCode: 111
+  name: mint-light
+  rgb:
+  - 127
+  - 255
+  - 191
+- aciCode: 112
+  name: mint-strong
+  rgb:
+  - 0
+  - 165
+  - 82
+- aciCode: 113
+  name: mint-muted
+  rgb:
+  - 82
+  - 165
+  - 124
+- aciCode: 114
+  name: mint-medium
+  rgb:
+  - 0
+  - 127
+  - 63
+- aciCode: 115
+  name: mint-soft
+  rgb:
+  - 63
+  - 127
+  - 95
+- aciCode: 116
+  name: mint-deep
+  rgb:
+  - 0
+  - 76
+  - 38
+- aciCode: 117
+  name: mint-pale
+  rgb:
+  - 38
+  - 76
+  - 57
+- aciCode: 118
+  name: mint-dark
+  rgb:
+  - 0
+  - 38
+  - 19
+- aciCode: 119
+  name: mint-dusky
+  rgb:
+  - 19
+  - 38
+  - 28
+- aciCode: 120
+  name: aquamarine
+  rgb:
+  - 0
+  - 255
+  - 191
+- aciCode: 121
+  name: aquamarine-light
+  rgb:
+  - 127
+  - 255
+  - 223
+- aciCode: 122
+  name: aquamarine-strong
+  rgb:
+  - 0
+  - 165
+  - 124
+- aciCode: 123
+  name: aquamarine-muted
+  rgb:
+  - 82
+  - 165
+  - 145
+- aciCode: 124
+  name: aquamarine-medium
+  rgb:
+  - 0
+  - 127
+  - 95
+- aciCode: 125
+  name: aquamarine-soft
+  rgb:
+  - 63
+  - 127
+  - 111
+- aciCode: 126
+  name: aquamarine-deep
+  rgb:
+  - 0
+  - 76
+  - 57
+- aciCode: 127
+  name: aquamarine-pale
+  rgb:
+  - 38
+  - 76
+  - 66
+- aciCode: 128
+  name: aquamarine-dark
+  rgb:
+  - 0
+  - 38
+  - 28
+- aciCode: 129
+  name: aquamarine-dusky
+  rgb:
+  - 19
+  - 38
+  - 33
+- aciCode: 130
+  name: cyan
+  rgb:
+  - 0
+  - 255
+  - 255
+- aciCode: 131
+  name: cyan-light
+  rgb:
+  - 127
+  - 255
+  - 255
+- aciCode: 132
+  name: cyan-strong
+  rgb:
+  - 0
+  - 165
+  - 165
+- aciCode: 133
+  name: cyan-muted
+  rgb:
+  - 82
+  - 165
+  - 165
+- aciCode: 134
+  name: cyan-medium
+  rgb:
+  - 0
+  - 127
+  - 127
+- aciCode: 135
+  name: cyan-soft
+  rgb:
+  - 63
+  - 127
+  - 127
+- aciCode: 136
+  name: cyan-deep
+  rgb:
+  - 0
+  - 76
+  - 76
+- aciCode: 137
+  name: cyan-pale
+  rgb:
+  - 38
+  - 76
+  - 76
+- aciCode: 138
+  name: cyan-dark
+  rgb:
+  - 0
+  - 38
+  - 38
+- aciCode: 139
+  name: cyan-dusky
+  rgb:
+  - 19
+  - 38
+  - 38
+- aciCode: 140
+  name: azure
+  rgb:
+  - 0
+  - 191
+  - 255
+- aciCode: 141
+  name: azure-light
+  rgb:
+  - 127
+  - 223
+  - 255
+- aciCode: 142
+  name: azure-strong
+  rgb:
+  - 0
+  - 124
+  - 165
+- aciCode: 143
+  name: azure-muted
+  rgb:
+  - 82
+  - 145
+  - 165
+- aciCode: 144
+  name: azure-medium
+  rgb:
+  - 0
+  - 95
+  - 127
+- aciCode: 145
+  name: azure-soft
+  rgb:
+  - 63
+  - 111
+  - 127
+- aciCode: 146
+  name: azure-deep
+  rgb:
+  - 0
+  - 57
+  - 76
+- aciCode: 147
+  name: azure-pale
+  rgb:
+  - 38
+  - 66
+  - 76
+- aciCode: 148
+  name: azure-dark
+  rgb:
+  - 0
+  - 28
+  - 38
+- aciCode: 149
+  name: azure-dusky
+  rgb:
+  - 19
+  - 33
+  - 38
+- aciCode: 150
+  name: cerulean
+  rgb:
+  - 0
+  - 127
+  - 255
+- aciCode: 151
+  name: cerulean-light
+  rgb:
+  - 127
+  - 191
+  - 255
+- aciCode: 152
+  name: cerulean-strong
+  rgb:
+  - 0
+  - 82
+  - 165
+- aciCode: 153
+  name: cerulean-muted
+  rgb:
+  - 82
+  - 124
+  - 165
+- aciCode: 154
+  name: cerulean-medium
+  rgb:
+  - 0
+  - 63
+  - 127
+- aciCode: 155
+  name: cerulean-soft
+  rgb:
+  - 63
+  - 95
+  - 127
+- aciCode: 156
+  name: cerulean-deep
+  rgb:
+  - 0
+  - 38
+  - 76
+- aciCode: 157
+  name: cerulean-pale
+  rgb:
+  - 38
+  - 57
+  - 76
+- aciCode: 158
+  name: cerulean-dark
+  rgb:
+  - 0
+  - 19
+  - 38
+- aciCode: 159
+  name: cerulean-dusky
+  rgb:
+  - 19
+  - 28
+  - 38
+- aciCode: 160
+  name: indigo
+  rgb:
+  - 0
+  - 63
+  - 255
+- aciCode: 161
+  name: indigo-light
+  rgb:
+  - 127
+  - 159
+  - 255
+- aciCode: 162
+  name: indigo-strong
+  rgb:
+  - 0
+  - 41
+  - 165
+- aciCode: 163
+  name: indigo-muted
+  rgb:
+  - 82
+  - 103
+  - 165
+- aciCode: 164
+  name: indigo-medium
+  rgb:
+  - 0
+  - 31
+  - 127
+- aciCode: 165
+  name: indigo-soft
+  rgb:
+  - 63
+  - 79
+  - 127
+- aciCode: 166
+  name: indigo-deep
+  rgb:
+  - 0
+  - 19
+  - 76
+- aciCode: 167
+  name: indigo-pale
+  rgb:
+  - 38
+  - 47
+  - 76
+- aciCode: 168
+  name: indigo-dark
+  rgb:
+  - 0
+  - 9
+  - 38
+- aciCode: 169
+  name: indigo-dusky
+  rgb:
+  - 19
+  - 23
+  - 38
+- aciCode: 170
+  name: blue
+  rgb:
+  - 0
+  - 0
+  - 255
+- aciCode: 171
+  name: blue-light
+  rgb:
+  - 127
+  - 127
+  - 255
+- aciCode: 172
+  name: blue-strong
+  rgb:
+  - 0
+  - 0
+  - 165
+- aciCode: 173
+  name: blue-muted
+  rgb:
+  - 82
+  - 82
+  - 165
+- aciCode: 174
+  name: blue-medium
+  rgb:
+  - 0
+  - 0
+  - 127
+- aciCode: 175
+  name: blue-soft
+  rgb:
+  - 63
+  - 63
+  - 127
+- aciCode: 176
+  name: blue-deep
+  rgb:
+  - 0
+  - 0
+  - 76
+- aciCode: 177
+  name: blue-pale
+  rgb:
+  - 38
+  - 38
+  - 76
+- aciCode: 178
+  name: blue-dark
+  rgb:
+  - 0
+  - 0
+  - 38
+- aciCode: 179
+  name: blue-dusky
+  rgb:
+  - 19
+  - 19
+  - 38
+- aciCode: 180
+  name: violet
+  rgb:
+  - 63
+  - 0
+  - 255
+- aciCode: 181
+  name: violet-light
+  rgb:
+  - 159
+  - 127
+  - 255
+- aciCode: 182
+  name: violet-strong
+  rgb:
+  - 41
+  - 0
+  - 165
+- aciCode: 183
+  name: violet-muted
+  rgb:
+  - 103
+  - 82
+  - 165
+- aciCode: 184
+  name: violet-medium
+  rgb:
+  - 31
+  - 0
+  - 127
+- aciCode: 185
+  name: violet-soft
+  rgb:
+  - 79
+  - 63
+  - 127
+- aciCode: 186
+  name: violet-deep
+  rgb:
+  - 19
+  - 0
+  - 76
+- aciCode: 187
+  name: violet-pale
+  rgb:
+  - 47
+  - 38
+  - 76
+- aciCode: 188
+  name: violet-dark
+  rgb:
+  - 9
+  - 0
+  - 38
+- aciCode: 189
+  name: violet-dusky
+  rgb:
+  - 23
+  - 19
+  - 38
+- aciCode: 190
+  name: purple
+  rgb:
+  - 127
+  - 0
+  - 255
+- aciCode: 191
+  name: purple-light
+  rgb:
+  - 191
+  - 127
+  - 255
+- aciCode: 192
+  name: purple-strong
+  rgb:
+  - 82
+  - 0
+  - 165
+- aciCode: 193
+  name: purple-muted
+  rgb:
+  - 124
+  - 82
+  - 165
+- aciCode: 194
+  name: purple-medium
+  rgb:
+  - 63
+  - 0
+  - 127
+- aciCode: 195
+  name: purple-soft
+  rgb:
+  - 95
+  - 63
+  - 127
+- aciCode: 196
+  name: purple-deep
+  rgb:
+  - 38
+  - 0
+  - 76
+- aciCode: 197
+  name: purple-pale
+  rgb:
+  - 57
+  - 38
+  - 76
+- aciCode: 198
+  name: purple-dark
+  rgb:
+  - 19
+  - 0
+  - 38
+- aciCode: 199
+  name: purple-dusky
+  rgb:
+  - 28
+  - 19
+  - 38
+- aciCode: 200
+  name: lavender
+  rgb:
+  - 191
+  - 0
+  - 255
+- aciCode: 201
+  name: lavender-light
+  rgb:
+  - 223
+  - 127
+  - 255
+- aciCode: 202
+  name: lavender-strong
+  rgb:
+  - 124
+  - 0
+  - 165
+- aciCode: 203
+  name: lavender-muted
+  rgb:
+  - 145
+  - 82
+  - 165
+- aciCode: 204
+  name: lavender-medium
+  rgb:
+  - 95
+  - 0
+  - 127
+- aciCode: 205
+  name: lavender-soft
+  rgb:
+  - 111
+  - 63
+  - 127
+- aciCode: 206
+  name: lavender-deep
+  rgb:
+  - 57
+  - 0
+  - 76
+- aciCode: 207
+  name: lavender-pale
+  rgb:
+  - 66
+  - 38
+  - 76
+- aciCode: 208
+  name: lavender-dark
+  rgb:
+  - 28
+  - 0
+  - 38
+- aciCode: 209
+  name: lavender-dusky
+  rgb:
+  - 33
+  - 19
+  - 38
+- aciCode: 210
+  name: magenta
+  rgb:
+  - 255
+  - 0
+  - 255
+- aciCode: 211
+  name: magenta-light
+  rgb:
+  - 255
+  - 127
+  - 255
+- aciCode: 212
+  name: magenta-strong
+  rgb:
+  - 165
+  - 0
+  - 165
+- aciCode: 213
+  name: magenta-muted
+  rgb:
+  - 165
+  - 82
+  - 165
+- aciCode: 214
+  name: magenta-medium
+  rgb:
+  - 127
+  - 0
+  - 127
+- aciCode: 215
+  name: magenta-soft
+  rgb:
+  - 127
+  - 63
+  - 127
+- aciCode: 216
+  name: magenta-deep
+  rgb:
+  - 76
+  - 0
+  - 76
+- aciCode: 217
+  name: magenta-pale
+  rgb:
+  - 76
+  - 38
+  - 76
+- aciCode: 218
+  name: magenta-dark
+  rgb:
+  - 38
+  - 0
+  - 38
+- aciCode: 219
+  name: magenta-dusky
+  rgb:
+  - 38
+  - 19
+  - 38
+- aciCode: 220
+  name: fuchsia
+  rgb:
+  - 255
+  - 0
+  - 191
+- aciCode: 221
+  name: fuchsia-light
+  rgb:
+  - 255
+  - 127
+  - 223
+- aciCode: 222
+  name: fuchsia-strong
+  rgb:
+  - 165
+  - 0
+  - 124
+- aciCode: 223
+  name: fuchsia-muted
+  rgb:
+  - 165
+  - 82
+  - 145
+- aciCode: 224
+  name: fuchsia-medium
+  rgb:
+  - 127
+  - 0
+  - 95
+- aciCode: 225
+  name: fuchsia-soft
+  rgb:
+  - 127
+  - 63
+  - 111
+- aciCode: 226
+  name: fuchsia-deep
+  rgb:
+  - 76
+  - 0
+  - 57
+- aciCode: 227
+  name: fuchsia-pale
+  rgb:
+  - 76
+  - 38
+  - 66
+- aciCode: 228
+  name: fuchsia-dark
+  rgb:
+  - 38
+  - 0
+  - 28
+- aciCode: 229
+  name: fuchsia-dusky
+  rgb:
+  - 38
+  - 19
+  - 33
+- aciCode: 230
+  name: cerise
+  rgb:
+  - 255
+  - 0
+  - 127
+- aciCode: 231
+  name: cerise-light
+  rgb:
+  - 255
+  - 127
+  - 191
+- aciCode: 232
+  name: cerise-strong
+  rgb:
+  - 165
+  - 0
+  - 82
+- aciCode: 233
+  name: cerise-muted
+  rgb:
+  - 165
+  - 82
+  - 124
+- aciCode: 234
+  name: cerise-medium
+  rgb:
+  - 127
+  - 0
+  - 63
+- aciCode: 235
+  name: cerise-soft
+  rgb:
+  - 127
+  - 63
+  - 95
+- aciCode: 236
+  name: cerise-deep
+  rgb:
+  - 76
+  - 0
+  - 38
+- aciCode: 237
+  name: cerise-pale
+  rgb:
+  - 76
+  - 38
+  - 57
+- aciCode: 238
+  name: cerise-dark
+  rgb:
+  - 38
+  - 0
+  - 19
+- aciCode: 239
+  name: cerise-dusky
+  rgb:
+  - 38
+  - 19
+  - 28
+- aciCode: 240
+  name: rose
+  rgb:
+  - 255
+  - 0
+  - 63
+- aciCode: 241
+  name: rose-light
+  rgb:
+  - 255
+  - 127
+  - 159
+- aciCode: 242
+  name: rose-strong
+  rgb:
+  - 165
+  - 0
+  - 41
+- aciCode: 243
+  name: rose-muted
+  rgb:
+  - 165
+  - 82
+  - 103
+- aciCode: 244
+  name: rose-medium
+  rgb:
+  - 127
+  - 0
+  - 31
+- aciCode: 245
+  name: rose-soft
+  rgb:
+  - 127
+  - 63
+  - 79
+- aciCode: 246
+  name: rose-deep
+  rgb:
+  - 76
+  - 0
+  - 19
+- aciCode: 247
+  name: rose-pale
+  rgb:
+  - 76
+  - 38
+  - 47
+- aciCode: 248
+  name: rose-dark
+  rgb:
+  - 38
+  - 0
+  - 9
+- aciCode: 249
+  name: rose-dusky
+  rgb:
+  - 38
+  - 19
+  - 23
+- aciCode: 250
+  name: charcoal
+  rgb:
+  - 84
+  - 84
+  - 84
+- aciCode: 251
+  name: granite
+  rgb:
+  - 118
+  - 118
+  - 118
+- aciCode: 252
+  name: ash
+  rgb:
+  - 152
+  - 152
+  - 152
+- aciCode: 253
+  name: platinum
+  rgb:
+  - 186
+  - 186
+  - 186
+- aciCode: 254
+  name: ivory
+  rgb:
+  - 220
+  - 220
+  - 220
+- aciCode: 255
+  name: real-white
+  rgb:
+  - 255
+  - 255
+  - 255

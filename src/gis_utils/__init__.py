@@ -21,6 +21,12 @@ from gis_utils.dxf.map_od import (
     encode_od_1004,
     get_table_handle_by_name,
 )
+from gis_utils.cad import (
+    LayerSpec,
+    Style,
+    export_layers,
+    load_styles,
+)
 from gis_utils.geometry import (
     buffer_ring_zones,
     classify_direction,
@@ -82,6 +88,11 @@ __all__ = [
     "attach_od_to_entity",
     "encode_od_1004",
     "get_table_handle_by_name",
+    # CAD emitter (styled GPKG → DXF, one-way)
+    "export_layers",
+    "LayerSpec",
+    "Style",
+    "load_styles",
     # Geometry utilities
     "remove_inner_rings",
     "make_valid_gdf",

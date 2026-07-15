@@ -1,0 +1,31 @@
+# Test fixture: strict cad_styles for the Georgendorf core layers.
+# Normalised from Python-ACAD-Tools/styles.yaml (geltungsbereich, baufeld,
+# baugrenze) into the strict schema (snake_case, closed field set).
+schema_version: 1
+styles:
+  geltungsbereich:
+    layer:
+      color: red
+      lineweight: 50
+      plot: false
+    entity:
+      linetype_generation: true
+
+  baufeld:
+    layer:
+      color: vermilion-light
+      transparency: 0.6
+    hatch:
+      pattern: SOLID
+      color: vermilion-light
+      transparency: 0.6
+      individual: false
+
+  baugrenze:
+    layer:
+      linetype: ACAD_ISO11W100
+      lineweight: 50
+    entity:
+      close: true
+      linetype_scale: 0.5
+      linetype_generation: true
