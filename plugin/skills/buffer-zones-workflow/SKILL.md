@@ -109,9 +109,9 @@ If inner edge is visibly wrong → adjust `source_extend_m`.
 ### Discovery via MCP
 
 ```
-mcp__gis-utils__list_recipes(search="atkis")        # find available ATKIS recipes
-mcp__gis-utils__list_templates()                    # confirm buffer_zones present
-mcp__gis-utils__check_recipe_layers("mv_atkis")     # verify recipe layers against live WFS
+mcp__pbs-gis__list_recipes(search="atkis")        # find available ATKIS recipes
+mcp__pbs-gis__list_templates()                    # confirm buffer_zones present
+mcp__pbs-gis__check_recipe_layers("mv_atkis")     # verify recipe layers against live WFS
 ```
 
 ### Common mistakes (avoid)

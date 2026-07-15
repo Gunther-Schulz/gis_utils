@@ -1,4 +1,4 @@
-"""Unit tests for the CAD emitter (``gis_utils.cad.emit``).
+"""Unit tests for the CAD emitter (``pbs_gis.cad.emit``).
 
 Covers the hard input contract (unknown style, missing source, CRS mismatch,
 missing/no CRS) and an emit roundtrip: build small GeoPackages, export to DXF,
@@ -12,7 +12,7 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import LineString, Point, Polygon
 
-from gis_utils.cad import ExportError, LayerSpec, export_layers, load_styles
+from pbs_gis.cad import ExportError, LayerSpec, export_layers, load_styles
 
 CRS = "EPSG:25833"
 FIXTURE = "tests/fixtures/cad_styles_georgendorf.yaml"
@@ -143,7 +143,7 @@ def test_labels_written(tmp_path):
     out = tmp_path / "out.dxf"
     # baugrenze carries no text block → geltungsbereich would need one; use a
     # style with text via a small inline map instead.
-    from gis_utils.cad.styles import parse_styles
+    from pbs_gis.cad.styles import parse_styles
 
     styles = parse_styles({
         "schema_version": 1,
@@ -205,7 +205,7 @@ def test_reexport_is_idempotent_and_keeps_foreign(tmp_path):
 
 
 def test_invalid_lineweight_snaps_to_nearest(tmp_path):
-    from gis_utils.cad.styles import parse_styles
+    from pbs_gis.cad.styles import parse_styles
 
     styles = parse_styles({
         "schema_version": 1,

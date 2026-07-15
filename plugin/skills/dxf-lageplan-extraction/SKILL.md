@@ -21,7 +21,7 @@ Erster Schritt fast jedes PBS-Projekts: AutoCAD-Lageplan vom Vermesser/Architekt
 2. **CRS** des DXF-Plans
    - Vermesser-Pläne: meist EPSG:25832 (UTM Zone 32, west-DE) oder EPSG:25833 (UTM Zone 33, ost-DE)
    - Bei DDR-Bauten oft Gauss-Krüger 4 oder 5 — heute eher selten
-   - Falls UTM-Zonen-Präfix in den Koordinaten (z.B. 33266881 statt 266881): `strip_utm_zone_prefix()` aus gis_utils oder Template-Parameter `strip_zone: true`
+   - Falls UTM-Zonen-Präfix in den Koordinaten (z.B. 33266881 statt 266881): `strip_utm_zone_prefix()` aus pbs_gis oder Template-Parameter `strip_zone: true`
 
 3. **Koordinaten-Offset** falls DXF nicht exakt georeferenziert
    - Häufig kleine Offsets (z.B. -0.12 m / +0.12 m) zwischen DXF und tatsächlichem Lagepunkt — vom Vermesser dokumentiert oder per DOP-Vergleich ermitteln
@@ -66,7 +66,7 @@ Erster Schritt fast jedes PBS-Projekts: AutoCAD-Lageplan vom Vermesser/Architekt
 **Weg 3 — Project-Skript** (wenn projektspezifische Logik dazukommt: Offset, Differenz-Berechnungen, Ableitungen wie Wege = Baufeld − Modulflächen):
 ```python
 # scripts/create_shapes.py
-from gis_utils import extract_dxf_layers, make_valid_gdf, subtract_geometries
+from pbs_gis import extract_dxf_layers, make_valid_gdf, subtract_geometries
 from shapely.affinity import translate
 
 layers = extract_dxf_layers(DXF_PATH, CRS, layers=["Baufeld", "Module"])
@@ -80,7 +80,7 @@ layers = extract_dxf_layers(DXF_PATH, CRS, layers=["Baufeld", "Module"])
 Über kleine Offsets hinaus: manche Vermesser-/Architekten-DXF liegen in einem **lokalen oder ursprungs-reduzierten CAD-System**, in **keinem** realen CRS (Indizien: Block-Name wie `_Kataster-nicht-georef`; kein Kandidaten-EPSG bringt die Geometrie auf den realen Standort).
 
 1. **Lokal bestätigen**: DXF-Extent durch die plausiblen CRS transformieren — landet keiner am Standort, ist es lokal (kein bloßer Offset).
-2. **Über das eingebettete Kataster einpassen**: solche DXF tragen meist ALKIS-Layer (Flurstücke, Gebäude). Mit `gis_utils.register_features()` an das **amtliche ALKIS** des Standorts matchen (Ähnlichkeitstransformation; meist reine **Translation** — Maßstab 1, Rotation 0). Offset speichern, alle Planlayer damit transformieren.
+2. **Über das eingebettete Kataster einpassen**: solche DXF tragen meist ALKIS-Layer (Flurstücke, Gebäude). Mit `pbs_gis.register_features()` an das **amtliche ALKIS** des Standorts matchen (Ähnlichkeitstransformation; meist reine **Translation** — Maßstab 1, Rotation 0). Offset speichern, alle Planlayer damit transformieren.
 3. **Über physische Plausibilität auf dem DOP prüfen, nicht nur über Restklaffung** — ein sub-mm-Fit auf eine *fehlplatzierte* Referenz ist trotzdem falsch. Sanity-Check: Liegen Bestandsobjekte richtig? Ist etwas physisch unmöglich (z.B. Baumkrone auf dem Parkplatz)? Eine widersprechende Operator-Beobachtung als Prüf-Anlass nehmen, nicht verwerfen.
 
 ### Saubere Footprints extrahieren
@@ -104,9 +104,9 @@ Nach Extraktion:
 ### Discovery via MCP
 
 ```
-mcp__gis-utils__list_templates                  # zeigt dxf_extract, dxf_lines_to_polygon, verification_dxf
-mcp__gis-utils__get_function_help("extract_dxf_layers")   # alle Optionen
-mcp__gis-utils__get_function_help("shapefile_to_dxf")     # für Round-Trip
+mcp__pbs-gis__list_templates                  # zeigt dxf_extract, dxf_lines_to_polygon, verification_dxf
+mcp__pbs-gis__get_function_help("extract_dxf_layers")   # alle Optionen
+mcp__pbs-gis__get_function_help("shapefile_to_dxf")     # für Round-Trip
 ```
 
 ### Common mistakes (avoid)

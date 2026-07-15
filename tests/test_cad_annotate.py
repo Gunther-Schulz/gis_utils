@@ -5,7 +5,7 @@ from __future__ import annotations
 import ezdxf
 import pytest
 
-from gis_utils.cad import (
+from pbs_gis.cad import (
     AnnotateError,
     LegendEntry,
     LegendStyle,
@@ -17,8 +17,8 @@ from gis_utils.cad import (
     insert_block,
     parse_styles,
 )
-from gis_utils.cad.emit import CAD_APP_ID, _purge_emitted
-from gis_utils.dxf.document import new_dxf_document
+from pbs_gis.cad.emit import CAD_APP_ID, _purge_emitted
+from pbs_gis.dxf.document import new_dxf_document
 
 
 def _styles():

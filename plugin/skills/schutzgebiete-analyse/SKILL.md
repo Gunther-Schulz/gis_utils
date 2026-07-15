@@ -68,15 +68,15 @@ Plus optional ein project-side Skript `scripts/schutzgebiete_report.py` für die
 (je nach Recipe / WFS-Quelle unterschiedlich — vor Schreiben des `name_col` einmal `gpd.read_file(...)` und Spalten ansehen)
 - SH LRP: `gebietsnam`, `name`, `kennung`
 - MV ALKIS: `bezeichnung`, `name`
-- Bei Unsicherheit: `find_column(gdf, candidates=["name", "bezeichnung", ...])` aus gis_utils
+- Bei Unsicherheit: `find_column(gdf, candidates=["name", "bezeichnung", ...])` aus pbs_gis
 
 ### Discovery via MCP
 
 ```
-mcp__gis-utils__list_recipes(search="schutzgebiet")
-mcp__gis-utils__list_recipes(search="natura")
-mcp__gis-utils__list_recipes(search="wsg")
-mcp__gis-utils__check_recipe_layers("sh_lrp_karte1")    # alle 22 Layer + Spec-Vergleich
+mcp__pbs-gis__list_recipes(search="schutzgebiet")
+mcp__pbs-gis__list_recipes(search="natura")
+mcp__pbs-gis__list_recipes(search="wsg")
+mcp__pbs-gis__check_recipe_layers("sh_lrp_karte1")    # alle 22 Layer + Spec-Vergleich
 ```
 
 ### User-side verification

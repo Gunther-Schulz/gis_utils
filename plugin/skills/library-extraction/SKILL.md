@@ -1,6 +1,6 @@
 ---
 name: library-extraction
-description: This skill should be used when the user asks to "write a script", "add to the workflow", "create a processing step", or when writing project-local Python code in a GIS project that uses gis_utils. Evaluates whether logic should be extracted into the gis_utils library.
+description: This skill should be used when the user asks to "write a script", "add to the workflow", "create a processing step", or when writing project-local Python code in a GIS project that uses pbs_gis. Evaluates whether logic should be extracted into the pbs_gis library.
 license: MIT
 ---
 
@@ -10,10 +10,10 @@ When writing project-local scripts (`scripts/*.py` or inline workflow steps), ev
 
 ### Before writing project-local code
 
-1. **Check if it already exists**: use `mcp__gis-utils__catalog` to search for existing functions
+1. **Check if it already exists**: use `mcp__pbs-gis__catalog` to search for existing functions
 2. **If it doesn't exist, ask**: is this operation specific to this project, or would other projects benefit?
 
-### Signs that code should go into gis_utils
+### Signs that code should go into pbs_gis
 
 - The operation works on standard types (GeoDataFrame, Shapely geometry, DXF entities) — not project-specific data
 - You can describe it without mentioning the project name or specific file paths
@@ -24,7 +24,7 @@ When writing project-local scripts (`scripts/*.py` or inline workflow steps), ev
 
 1. **Generalize parameters**: replace hardcoded values (CRS, layer names, file paths, thresholds) with function parameters. No project-specific defaults.
 2. **Decompose**: break into small, composable functions. One function per operation. A 50-line script often becomes 2-3 library functions that each do one thing.
-3. **Follow existing patterns**: use `mcp__gis-utils__catalog` to find similar functions and match their conventions (parameter naming, return types, docstring format).
+3. **Follow existing patterns**: use `mcp__pbs-gis__catalog` to find similar functions and match their conventions (parameter naming, return types, docstring format).
 4. **Add to the right module**: check existing module structure. Geometry ops → `geometry.py`, DXF ops → `dxf/`, reporting → `reporting.py`, etc.
 5. **Update the local script**: replace the inlined logic with a call to the new library function. The script becomes a thin wrapper that passes project-specific parameters.
 6. **Update workflow.yaml**: if the extraction enables a template pattern, consider creating a template.

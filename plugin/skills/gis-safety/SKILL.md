@@ -1,12 +1,12 @@
 ---
 name: gis-safety
-description: This skill should be used when the user asks to "write code", "implement", "create a script", "add a function", or any code-writing task in a GIS/CAD project that uses gis_utils. Enforces CRS safety, dangerous defaults prevention, and output conventions.
+description: This skill should be used when the user asks to "write code", "implement", "create a script", "add a function", or any code-writing task in a GIS/CAD project that uses pbs_gis. Enforces CRS safety, dangerous defaults prevention, and output conventions.
 license: MIT
 ---
 
 ## GIS Safety Rules
 
-Apply these rules to ALL code written in gis_utils projects.
+Apply these rules to ALL code written in pbs_gis projects.
 
 ### CRITICAL: No dangerous defaults or silent fallbacks
 
@@ -45,18 +45,18 @@ When starting work in a GIS project:
 
 ### Discovery before coding
 
-Before writing code, use the `gis-utils` MCP tools to discover available functions:
-- `mcp__gis-utils__catalog` — search the full API
-- `mcp__gis-utils__list_recipes` — find data source recipes
-- `mcp__gis-utils__list_templates` — find workflow templates
-- `mcp__gis-utils__get_function_help` — get detailed function docs
+Before writing code, use the `pbs-gis` MCP tools to discover available functions:
+- `mcp__pbs-gis__catalog` — search the full API
+- `mcp__pbs-gis__list_recipes` — find data source recipes
+- `mcp__pbs-gis__list_templates` — find workflow templates
+- `mcp__pbs-gis__get_function_help` — get detailed function docs
 
 ### Print layouts — the map item follows a map theme
 
 Any QGIS print layout (`.qpt` template or hand-rolled PyQGIS, any project): the map item follows a **named map theme**, not the live canvas and not a bare `setLayers([...])` — so later canvas edits can't change an exported layout.
 
 - `m.setFollowVisibilityPreset(True); m.setFollowVisibilityPresetName(theme)`.
-- Build the theme with `gis_utils.qgis_bridge.define_map_theme(name, visible_layers)` — never hand-roll `createThemeFromCurrentState(root, None)` (`None` model segfaults QGIS).
+- Build the theme with `pbs_gis.qgis_bridge.define_map_theme(name, visible_layers)` — never hand-roll `createThemeFromCurrentState(root, None)` (`None` model segfaults QGIS).
 - Library helpers take it directly: `render_layout_template(..., map_theme=...)`, `layout_from_qpt` `map.theme:`.
 - `setLayers([...])` may still seed the legend tree; visibility comes from the theme.
 - Full AOI/scale/legend workflow: `layout-from-template` skill.

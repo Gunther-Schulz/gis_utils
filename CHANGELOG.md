@@ -42,4 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`gis-workflow init`** — default `workflow.yaml` no longer emits an `Example step` referencing a non-existent `scripts/example.py` (which made `gis-workflow run` fail on every fresh project). New template starts with `steps: []` and a commented-out example block.
 - **`find_flurstuecke`** error when no search scope is provided now lists all four options (`input_boundary` / `extent` / `gemarkung_schluessel` / `gemeinde_schluessel`) with `input_boundary` marked as recommended.
 
-[Unreleased]: https://github.com/Gunther-Schulz/gis_utils/compare/main...HEAD
+### Changed
+
+- **Rename `gis_utils` → `pbs_gis` (Clean-Cut, kein Kompat-Shim)** — the Python package, distribution name (`gis-utils` → `pbs-gis`), Claude-Code-Plugin/Marketplace (`gis-utils` → `pbs-gis`) and the repository (`Gunther-Schulz/gis_utils` → `Planungsburo-Schulz/pbs-gis`) are renamed under the org umbrella (Phase-5-A). The `gis-workflow` CLI name and the CAD-XDATA app-id `GIS_UTILS_CAD` (persistent DXF provenance tag — changing it would break idempotency detection of already-emitted entities) are intentionally kept.
+
+[Unreleased]: https://github.com/Planungsburo-Schulz/pbs-gis/compare/main...HEAD

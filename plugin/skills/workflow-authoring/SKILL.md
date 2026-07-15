@@ -17,7 +17,7 @@ gis-workflow run --step "Name"     # run single step + dependencies
 
 ### Standard project layout (mandatory)
 
-Every project uses these exact folder names — `gis-workflow init` creates them, defined once in `gis_utils.runner.PROJECT_DIRS`. Use them as-is; never invent variants (`Shapes/`, `Output/`, `Maps/`).
+Every project uses these exact folder names — `gis-workflow init` creates them, defined once in `pbs_gis.runner.PROJECT_DIRS`. Use them as-is; never invent variants (`Shapes/`, `Output/`, `Maps/`).
 
 | Folder | Holds |
 |---|---|
@@ -33,7 +33,7 @@ Use ad-hoc scripts only while *discovering* the data (unknown CRS, layer semanti
 
 ### Reports are steps too — never hand-type numbers
 
-A report (MD/PDF) whose figures derive from the geodata is a pipeline step, not a hand-written document — any number typed by hand goes stale silently the moment the data changes, and nothing flags it. Generate it mechanically: static/templated prose with computed values filled from the analysis layers (`conflict_matrix`, `area_report`, `area_by_category`, `intersection_areas`, `markdown_table` in `gis_utils.reporting` / `md_table`). Test: the only edits a data change requires are to the data + `gis-workflow run` — if a data change leaves a stale figure anywhere in the report, the report is not yet a step. Declare the report's data files under `inputs:` (see Step execution rules) or `auto` skips it and the edit is silently ignored. Applies to every project, not just the one at hand.
+A report (MD/PDF) whose figures derive from the geodata is a pipeline step, not a hand-written document — any number typed by hand goes stale silently the moment the data changes, and nothing flags it. Generate it mechanically: static/templated prose with computed values filled from the analysis layers (`conflict_matrix`, `area_report`, `area_by_category`, `intersection_areas`, `markdown_table` in `pbs_gis.reporting` / `md_table`). Test: the only edits a data change requires are to the data + `gis-workflow run` — if a data change leaves a stale figure anywhere in the report, the report is not yet a step. Declare the report's data files under `inputs:` (see Step execution rules) or `auto` skips it and the edit is silently ignored. Applies to every project, not just the one at hand.
 
 ### workflow.yaml format
 
@@ -71,15 +71,15 @@ Steps can use **scripts** (Python files) or **templates** (built-in patterns):
 ### Discover available templates and recipes
 
 Use the MCP tools before writing workflow steps:
-- `mcp__gis-utils__list_templates` — find reusable processing patterns
-- `mcp__gis-utils__list_recipes` — find data source recipes
-- `mcp__gis-utils__get_function_help` — get function details for scripts
+- `mcp__pbs-gis__list_templates` — find reusable processing patterns
+- `mcp__pbs-gis__list_recipes` — find data source recipes
+- `mcp__pbs-gis__get_function_help` — get function details for scripts
 
 Prefer templates over scripts when a template exists for the task — they're faster, tested, and require no code.
 
 ### Catalog sync
 
-When adding new submodules or CLI commands to gis_utils, update `catalog.py`:
+When adding new submodules or CLI commands to pbs_gis, update `catalog.py`:
 - **New submodule** → add to `_MODULES` list
 - **New CLI subcommand** → add to `_CLI_COMMANDS` list
 

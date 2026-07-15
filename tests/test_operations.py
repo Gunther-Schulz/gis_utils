@@ -1,4 +1,4 @@
-"""Unit tests for ported vector operations (``gis_utils.operations``)."""
+"""Unit tests for ported vector operations (``pbs_gis.operations``)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import LineString, Point, Polygon
 
-from gis_utils.operations import (
+from pbs_gis.operations import (
     connect_points,
     dissolve_by_majority_intersection,
     filter_by_column,

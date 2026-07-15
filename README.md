@@ -1,4 +1,4 @@
-# gis_utils
+# pbs_gis
 
 GIS/CAD utility library and project workflow runner.
 
@@ -32,7 +32,7 @@ The previous conda-based workflow still works:
 
 ```bash
 conda activate gis
-pip install -e ~/dev/Gunther-Schulz/gis_utils
+pip install -e ~/dev/Planungsbüro-Schulz/pbs-gis
 ```
 
 ### Claude Code plugin
@@ -40,8 +40,8 @@ pip install -e ~/dev/Gunther-Schulz/gis_utils
 The plugin provides MCP tools for API discovery and safety skills for GIS development:
 
 ```bash
-claude plugin marketplace add Gunther-Schulz/gis_utils
-claude plugin install gis-utils@gis-utils
+claude plugin marketplace add Planungsburo-Schulz/pbs-gis
+claude plugin install pbs-gis@pbs-gis
 ```
 
 Restart Claude Code or run `/reload-plugins` to activate.
@@ -60,14 +60,14 @@ Restart Claude Code or run `/reload-plugins` to activate.
 
 | Skill | Triggers on |
 |-------|-------------|
-| `gis-utils:gis-safety` | Any code writing in GIS projects — CRS rules, dangerous defaults, output conventions |
-| `gis-utils:geometry-workflow` | Geometry tasks — enforces data analysis before coding |
-| `gis-utils:workflow-authoring` | `workflow.yaml` editing, `gis-workflow` CLI |
-| `gis-utils:library-extraction` | Project-local Python — when to extract into the library |
-| `gis-utils:dxf-lageplan-extraction` | Reading DXF/CAD plans, extracting layers to GeoPackage/Shapefile |
-| `gis-utils:schutzgebiete-analyse` | Distance/overlap analysis with protected areas (Natura 2000, FFH, NSG, …) |
-| `gis-utils:buffer-zones-workflow` | Buffer zones around BAB, Bahn, infrastructure (e.g. § 35 BauGB privileging) |
-| `gis-utils:qgis-mcp-integration` | Live QGIS bridge — auto-reload, layer add, render preview |
+| `pbs-gis:gis-safety` | Any code writing in GIS projects — CRS rules, dangerous defaults, output conventions |
+| `pbs-gis:geometry-workflow` | Geometry tasks — enforces data analysis before coding |
+| `pbs-gis:workflow-authoring` | `workflow.yaml` editing, `gis-workflow` CLI |
+| `pbs-gis:library-extraction` | Project-local Python — when to extract into the library |
+| `pbs-gis:dxf-lageplan-extraction` | Reading DXF/CAD plans, extracting layers to GeoPackage/Shapefile |
+| `pbs-gis:schutzgebiete-analyse` | Distance/overlap analysis with protected areas (Natura 2000, FFH, NSG, …) |
+| `pbs-gis:buffer-zones-workflow` | Buffer zones around BAB, Bahn, infrastructure (e.g. § 35 BauGB privileging) |
+| `pbs-gis:qgis-mcp-integration` | Live QGIS bridge — auto-reload, layer add, render preview |
 
 ## Live QGIS bridge (optional)
 
@@ -76,7 +76,7 @@ in your open QGIS project (no manual reload), install the optional
 `[qgis]` extra and the matching QGIS plugin:
 
 ```bash
-uv sync --extra qgis    # legacy: pip install -e gis-utils[qgis]
+uv sync --extra qgis    # legacy: pip install -e pbs-gis[qgis]
 ```
 
 Then in QGIS: `Plugins → Manage and Install Plugins…` → search
@@ -91,12 +91,12 @@ GIS_WORKFLOW_QGIS_RELOAD=1 gis-workflow run
 The runner refreshes any layer in the open QGIS project whose data
 source matches the step's outputs after each successful step.  When
 QGIS isn't running, the env var is unset, or the `[qgis]` extra
-isn't installed, this is a silent no-op — gis_utils stays
+isn't installed, this is a silent no-op — pbs_gis stays
 headless-capable.
 
 For programmatic use in project scripts, see
-`gis_utils.qgis_bridge.reload_paths`, `add_layer`, `execute`.  Full
-setup details and pitfalls in the `gis-utils:qgis-mcp-integration`
+`pbs_gis.qgis_bridge.reload_paths`, `add_layer`, `execute`.  Full
+setup details and pitfalls in the `pbs-gis:qgis-mcp-integration`
 skill.
 
 ## Starting a new project
@@ -113,8 +113,8 @@ gis-workflow init "My Project"
 #    templates and recipes with `gis-workflow catalog` or the MCP
 #    `catalog`/`list_templates`/`list_recipes` tools.
 
-# 4. Start a Claude session in the project folder — the gis-utils plugin
-#    skills know how to use gis_utils, the workflow runner, and where to
+# 4. Start a Claude session in the project folder — the pbs-gis plugin
+#    skills know how to use pbs_gis, the workflow runner, and where to
 #    put project-specific vs reusable code.
 ```
 
@@ -142,7 +142,7 @@ Dependencies are resolved automatically (topological sort).
 
 ## Library API
 
-All common functions importable from top level: `from gis_utils import ...`
+All common functions importable from top level: `from pbs_gis import ...`
 
 ### DXF
 - `extract_dxf_layers()` — extract all geometry from DXF → `{layer: {geom_type: GeoDataFrame}}`
@@ -169,9 +169,9 @@ All common functions importable from top level: `from gis_utils import ...`
 - `area_by_category()` — intersection areas grouped by category
 
 ### Specialized (import from submodule)
-- `from gis_utils.osm import download_osm_polygons` — OSM Overpass API
-- `from gis_utils.wms import run` — WMS download + vectorization
-- `from gis_utils.grass import main` — GRASS GIS centerline extraction
+- `from pbs_gis.osm import download_osm_polygons` — OSM Overpass API
+- `from pbs_gis.wms import run` — WMS download + vectorization
+- `from pbs_gis.grass import main` — GRASS GIS centerline extraction
 
 ## Full API reference
 
@@ -200,8 +200,8 @@ After editing skills or the MCP server, push and update:
 
 ```bash
 git add -A && git commit -m "..." && git push
-claude plugin marketplace update gis-utils
-claude plugin update gis-utils@gis-utils
+claude plugin marketplace update pbs-gis
+claude plugin update pbs-gis@pbs-gis
 ```
 
 Then `/reload-plugins` or restart Claude Code.

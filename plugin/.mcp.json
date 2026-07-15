@@ -1,6 +1,6 @@
 {
-  "gis-utils": {
+  "pbs-gis": {
     "command": "/home/g/.conda/envs/gis/bin/python3",
-    "args": ["/home/g/dev/Gunther-Schulz/gis_utils/mcp/server.py"]
+    "args": ["/home/g/dev/Planungsbüro-Schulz/pbs-gis/mcp/server.py"]
   }
 }

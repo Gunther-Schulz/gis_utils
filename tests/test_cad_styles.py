@@ -2,15 +2,15 @@
 
 Pure unit tests: schema validation, closed-field enforcement, and ACI colour
 resolution against the packaged table. No ezdxf, no I/O beyond tmp_path.
-See ``src/gis_utils/cad/styles.py`` and ``colors.py``.
+See ``src/pbs_gis/cad/styles.py`` and ``colors.py``.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from gis_utils.cad.colors import ColorError, normalize_transparency, resolve_color
-from gis_utils.cad.styles import (
+from pbs_gis.cad.colors import ColorError, normalize_transparency, resolve_color
+from pbs_gis.cad.styles import (
     SCHEMA_VERSION,
     HatchStyle,
     StyleError,

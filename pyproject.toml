@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gis-utils"
+name = "pbs-gis"
 version = "0.14.0"
 description = "GIS utilities: DXF extraction, geometry operations, area reporting, WMS vectorization"
 readme = "README.md"
@@ -33,13 +33,13 @@ qgis = [
 ]
 
 [project.scripts]
-gis-workflow = "gis_utils.runner:main"
+gis-workflow = "pbs_gis.runner:main"
 
 [project.urls]
-Repository = "https://github.com/Gunther-Schulz/gis_utils"
+Repository = "https://github.com/Planungsburo-Schulz/pbs-gis"
 
 [tool.setuptools.package-data]
-gis_utils = ["sources/*.yaml", "sources/hooks/*.py", "cad/*.yaml"]
+pbs_gis = ["sources/*.yaml", "sources/hooks/*.py", "cad/*.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -50,6 +50,6 @@ dev = [
     # Test-only: lets tests/test_manifest.py validate an emitted Stand-Manifest
     # against the authoritative pbs_projekt.schema.ManifestDatei model when the
     # pbs-projekt sibling checkout is reachable. NOT a runtime dependency —
-    # gis_utils.manifest emits plain YAML from its own field copy (Abgleich).
+    # pbs_gis.manifest emits plain YAML from its own field copy (Abgleich).
     "pydantic>=2",
 ]

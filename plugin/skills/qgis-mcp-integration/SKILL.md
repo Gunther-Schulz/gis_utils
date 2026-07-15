@@ -1,12 +1,12 @@
 ---
 name: qgis-mcp-integration
-description: This skill should be used when the user asks to "set up QGIS MCP", "QGIS-Live-Bridge", "auto-reload layers in QGIS", "render map from QGIS", "open generated layer in QGIS", "qgis_bridge", "GIS_WORKFLOW_QGIS_RELOAD", "QGIS plugin installieren", "Claude soll QGIS steuern", "MCP server QGIS", or any task involving the live integration between gis_utils workflows and a running QGIS instance via the qgis-mcp plugin.
+description: This skill should be used when the user asks to "set up QGIS MCP", "QGIS-Live-Bridge", "auto-reload layers in QGIS", "render map from QGIS", "open generated layer in QGIS", "qgis_bridge", "GIS_WORKFLOW_QGIS_RELOAD", "QGIS plugin installieren", "Claude soll QGIS steuern", "MCP server QGIS", or any task involving the live integration between pbs_gis workflows and a running QGIS instance via the qgis-mcp plugin.
 license: MIT
 ---
 
-## QGIS-MCP Integration with gis_utils
+## QGIS-MCP Integration with pbs_gis
 
-The optional **`gis_utils.qgis_bridge`** module connects gis_utils workflows
+The optional **`pbs_gis.qgis_bridge`** module connects pbs_gis workflows
 to a running QGIS instance via the `qgis-mcp` plugin (by N. Karasiak).
 Use cases: auto-reload regenerated layers, open output files in QGIS,
 render preview maps, run Processing algorithms via QGIS.
@@ -52,15 +52,15 @@ claude mcp add qgis --scope user \
 not read that field.  Use `claude mcp add` which writes to
 `~/.claude.json`.)
 
-### 3. gis_utils with optional `[qgis]` extra
+### 3. pbs_gis with optional `[qgis]` extra
 
 ```bash
-pip install -e gis-utils[qgis]
-# or, from a fresh PyPI install:  pip install gis-utils[qgis]
+pip install -e pbs-gis[qgis]
+# or, from a fresh PyPI install:  pip install pbs-gis[qgis]
 ```
 
 This pulls in `qgis-mcp` from git as the Python client dependency.
-Without this extra, `gis_utils.qgis_bridge` becomes a silent no-op
+Without this extra, `pbs_gis.qgis_bridge` becomes a silent no-op
 (headless-safe).
 
 ### 4. Verify
@@ -234,7 +234,7 @@ Save as Template.
 ### Pattern F — Programmatic from a project script
 
 ```python
-from gis_utils import qgis_bridge
+from pbs_gis import qgis_bridge
 
 # Generate file ...
 gdf.to_file("Geodaten/MyResult.gpkg", driver="GPKG")
@@ -301,7 +301,7 @@ running — they all gracefully no-op when QGIS is unreachable.
 ## Architecture quick-reference
 
 ```
-gis_utils.qgis_bridge          ←  thin wrapper, lazy import of qgis-mcp client
+pbs_gis.qgis_bridge          ←  thin wrapper, lazy import of qgis-mcp client
         │
         │  via qgis-mcp's QgisMCPClient
         ▼
@@ -316,12 +316,12 @@ qgis-mcp QGIS plugin           ←  inside QGIS; QTimer-driven non-blocking serv
 QGIS app
 ```
 
-The bridge ships in gis_utils so workflow code can call it directly.
+The bridge ships in pbs_gis so workflow code can call it directly.
 The qgis-mcp Python client is the optional dependency.  The QGIS plugin
 must be installed separately via QGIS Plugin Manager.
 
 ## Discovery
 
 ```
-mcp__gis-utils__catalog(search="qgis_bridge")
+mcp__pbs-gis__catalog(search="qgis_bridge")
 ```

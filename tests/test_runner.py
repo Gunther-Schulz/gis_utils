@@ -2,7 +2,7 @@
 
 Pure unit tests: they exercise dependency resolution and make-style
 staleness against ``tmp_path`` files only — no QGIS, no network, no
-recipe/template execution. See ``src/gis_utils/runner.py``.
+recipe/template execution. See ``src/pbs_gis/runner.py``.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from gis_utils.runner import (
+from pbs_gis.runner import (
     _collect_deps,
     _collect_outputs,
     _resolve_extent,

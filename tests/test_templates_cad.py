@@ -15,8 +15,8 @@ import pytest
 import yaml
 from shapely.geometry import Polygon
 
-from gis_utils.manifest import sha256_file
-from gis_utils.templates import get_template
+from pbs_gis.manifest import sha256_file
+from pbs_gis.templates import get_template
 
 CRS = "EPSG:25833"
 STYLES_FIXTURE = "tests/fixtures/cad_styles_georgendorf.yaml"

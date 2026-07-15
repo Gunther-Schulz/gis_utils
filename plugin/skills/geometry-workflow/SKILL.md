@@ -25,9 +25,9 @@ For geometry conversion/analysis tasks (lines to polygons, closing gaps, finding
 
 Before writing geometry code, check what already exists:
 ```
-mcp__gis-utils__catalog(search="geometry")
-mcp__gis-utils__catalog(search="polygon")
-mcp__gis-utils__list_templates()
+mcp__pbs-gis__catalog(search="geometry")
+mcp__pbs-gis__catalog(search="polygon")
+mcp__pbs-gis__list_templates()
 ```
 
 The library likely has a function or template for what you need. Don't reimplement.

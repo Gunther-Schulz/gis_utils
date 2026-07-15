@@ -35,7 +35,7 @@ If the AOI layer has multiple overlapping features: dissolve to a single non-ove
 Build the theme with the helper — idempotent, layers matched by name, every other layer hidden. Never hand-roll `createThemeFromCurrentState(root, None)`: a `None` model segfaults QGIS.
 
 ```python
-from gis_utils import qgis_bridge
+from pbs_gis import qgis_bridge
 qgis_bridge.define_map_theme(theme_name, ["Vorhabensfläche", "Grundstück", "DOP20"])
 ```
 
@@ -217,7 +217,7 @@ Some adjustments are noticeably faster in QGIS UI than via PyQGIS — when the w
 | **Symbol fine-tuning** (exact line caps, hatch angles, semi-transparent fill blending) | Property dicts are version-sensitive and hatch params are fiddly | Designer: Properties panel — sliders + previews |
 | **Manual tracing / digitising** | Not a PyQGIS task at all | Edit mode → digitising tools |
 
-Rule of thumb: if a PyQGIS attempt loops 2–3 times without converging on the desired render, **stop and suggest the user finish in QGIS**. Once they fix it, re-export the layout via `gis_utils.qgis_bridge.render_layout_template` or via a quick `exportToPdf` / `exportToImage` snippet.
+Rule of thumb: if a PyQGIS attempt loops 2–3 times without converging on the desired render, **stop and suggest the user finish in QGIS**. Once they fix it, re-export the layout via `pbs_gis.qgis_bridge.render_layout_template` or via a quick `exportToPdf` / `exportToImage` snippet.
 
 This is a suggestion to the user, not a hard refusal: they may prefer to keep iterating in PyQGIS for reproducibility (e.g. CI). When they do, expand the diagnosis — print `lg.model().rootGroup().children()`, the renderer's `legendSymbolItems()`, the layout-item z-order — rather than guessing.
 
@@ -245,7 +245,7 @@ This is a suggestion to the user, not a hard refusal: they may prefer to keep it
 
 ### Programmatic counterpart
 
-For non-interactive / batch rendering of the same template (e.g. a `gis-workflow` step that auto-generates a Lageplan-PDF as part of a pipeline), use **`gis_utils.qgis_bridge.render_layout_template(...)`** instead of doing the steps above by hand. It loads the template, fills `{{...}}` placeholders from auftragnehmer/project YAMLs, resolves the logo path, and exports PDF/PNG against a running QGIS — useful when the cartographic decisions are already locked in. The interactive procedure in this skill is for the *first time* a project goes through layout setup; the library function is for repeats.
+For non-interactive / batch rendering of the same template (e.g. a `gis-workflow` step that auto-generates a Lageplan-PDF as part of a pipeline), use **`pbs_gis.qgis_bridge.render_layout_template(...)`** instead of doing the steps above by hand. It loads the template, fills `{{...}}` placeholders from auftragnehmer/project YAMLs, resolves the logo path, and exports PDF/PNG against a running QGIS — useful when the cartographic decisions are already locked in. The interactive procedure in this skill is for the *first time* a project goes through layout setup; the library function is for repeats.
 
 ### Future map-type specialisations
 

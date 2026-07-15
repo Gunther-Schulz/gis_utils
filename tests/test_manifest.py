@@ -1,4 +1,4 @@
-"""Tests for Stand-Manifest emission (``gis_utils.manifest``) and the runner's
+"""Tests for Stand-Manifest emission (``pbs_gis.manifest``) and the runner's
 ``publiziert:`` binding (Phase-4 P4-B.1).
 
 Covers: the written manifest's structure and hashes, error cases (missing
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from gis_utils.manifest import (
+from pbs_gis.manifest import (
     MANIFEST_SCHEMA_VERSION,
     sha256_file,
     werkzeug_id,
@@ -63,7 +63,7 @@ def test_write_manifest_structure_and_hashes(tmp_path):
     assert m["hash"] == _sha(art.read_bytes())
     assert m["parameter"] == {"mindestgroesse_ha": 5}
     assert m["quellen"] == [{"pfad": "kategorien.gpkg", "hash": _sha(q1.read_bytes())}]
-    assert m["werkzeug"].startswith("gis_utils/") and "publish_bilanz" in m["werkzeug"]
+    assert m["werkzeug"].startswith("pbs_gis/") and "publish_bilanz" in m["werkzeug"]
 
 
 def test_write_manifest_quellen_relative_to_basis(tmp_path):
@@ -97,7 +97,7 @@ def test_sha256_file_matches(tmp_path):
 # --- runner binding (publiziert flag) --------------------------------------
 
 def test_maybe_write_manifest_hook(tmp_path):
-    from gis_utils.runner import _maybe_write_manifest
+    from pbs_gis.runner import _maybe_write_manifest
 
     (tmp_path / "Geodaten").mkdir()
     out = _write(tmp_path / "Geodaten" / "result.gpkg", "data")
@@ -123,7 +123,7 @@ def test_maybe_write_manifest_hook(tmp_path):
 
 
 def test_maybe_write_manifest_no_flag_no_manifest(tmp_path):
-    from gis_utils.runner import _maybe_write_manifest
+    from pbs_gis.runner import _maybe_write_manifest
 
     out = _write(tmp_path / "result.gpkg", "data")
     step = {"name": "Plain", "output": "result.gpkg"}  # no publiziert
@@ -136,7 +136,7 @@ def test_run_workflow_publiziert_emits_manifest(tmp_path):
     import geopandas as gpd
     from shapely.geometry import Polygon
 
-    from gis_utils.runner import run_workflow
+    from pbs_gis.runner import run_workflow
 
     (tmp_path / "Geodaten").mkdir()
     square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
@@ -195,10 +195,10 @@ def _load_manifest_datei_model():
     """Import ``pbs_projekt.schema.ManifestDatei`` from a sibling checkout.
 
     Route chosen (reported to the operator): IMPORT-BY-PATH, test-only. The
-    runtime module ``gis_utils.manifest`` has NO pbs-projekt dependency; only
+    runtime module ``pbs_gis.manifest`` has NO pbs-projekt dependency; only
     this test reaches into the sibling repo to validate a real emission against
     the authority. Skips (never fails) when pbs-projekt or pydantic is absent,
-    so gis_utils remains standalone-testable.
+    so pbs_gis remains standalone-testable.
     """
     src = os.environ.get("PBS_PROJEKT_SRC") or str(
         Path("~/dev/Planungsbüro-Schulz/pbs-projekt/src").expanduser()
