@@ -96,6 +96,22 @@ def _warn(results: list[str], msg: str) -> None:
     results.append(msg)
 
 
+def _normalize_lineweight(value: int, warnings: list[str]) -> int | None:
+    """Coerce a lineweight to the nearest valid ezdxf enum value.
+
+    ezdxf only accepts a fixed set of DXF lineweight enum values (hundredths of
+    a millimetre) plus the special sentinels ``-1`` (BYLAYER), ``-2`` (BYBLOCK)
+    and ``-3`` (DEFAULT). An exact match is used verbatim; anything else is
+    snapped to the closest valid positive value and a warning is recorded
+    (documented behaviour — never a silent drop).
+    """
+    if value in _VALID_LINEWEIGHTS or value in (-1, -2, -3):
+        return value
+    nearest = min(_VALID_LINEWEIGHTS, key=lambda v: abs(v - value))
+    _warn(warnings, f"lineweight {value} not a valid DXF value; snapped to {nearest}")
+    return nearest
+
+
 def _set_layer_properties(layer, ls: LayerStyle, warnings: list[str]) -> None:
     """Apply a :class:`LayerStyle` to an ezdxf layer table entry.
 
@@ -114,10 +130,9 @@ def _set_layer_properties(layer, ls: LayerStyle, warnings: list[str]) -> None:
         else:
             _warn(warnings, f"linetype {ls.linetype!r} not in document; keeping CONTINUOUS")
     if ls.lineweight is not None:
-        if ls.lineweight in _VALID_LINEWEIGHTS:
-            layer.dxf.lineweight = ls.lineweight
-        else:
-            _warn(warnings, f"invalid lineweight {ls.lineweight}; skipped")
+        lw = _normalize_lineweight(ls.lineweight, warnings)
+        if lw is not None:
+            layer.dxf.lineweight = lw
     if ls.transparency is not None:
         t = normalize_transparency(ls.transparency)
         if t is not None:
@@ -158,6 +173,30 @@ def _attach_provenance(entity, doc) -> None:
         pass
 
 
+def _has_provenance(entity) -> bool:
+    """True if *entity* carries this emitter's provenance XDATA."""
+    try:
+        return entity.has_xdata(CAD_APP_ID)
+    except Exception:
+        return False
+
+
+def _purge_emitted(doc) -> int:
+    """Delete every entity previously written by this emitter (idempotent re-export).
+
+    Identifies emitter-owned entities by their :data:`CAD_APP_ID` XDATA
+    provenance and removes them from modelspace, so a re-export rewrites our
+    own layers cleanly while leaving foreign entities (hand-drawn in AutoCAD,
+    template content) untouched — even where they share a layer with ours.
+    Returns the number of entities removed.
+    """
+    msp = doc.modelspace()
+    doomed = [e for e in msp if _has_provenance(e)]
+    for entity in doomed:
+        msp.delete_entity(entity)
+    return len(doomed)
+
+
 def _apply_entity_style(entity, es: EntityStyle | None) -> None:
     """Apply per-entity style bits (linetype scale/generation)."""
     if es is None:
@@ -173,15 +212,27 @@ def _apply_entity_style(entity, es: EntityStyle | None) -> None:
             entity.dxf.flags &= ~LWPOLYLINE_PLINEGEN
 
 
+def _hatch_layer_name(geom_layer: str, hs: HatchStyle) -> str:
+    """Target layer for a hatch: the geometry layer, or a suffixed sibling."""
+    if hs.layer_suffix:
+        return f"{geom_layer} {hs.layer_suffix}"
+    return geom_layer
+
+
 def _add_hatch(msp, rings: list[list[tuple[float, float]]], hs: HatchStyle,
-               layer_name: str, doc) -> object | None:
+               geom_layer: str, doc) -> object | None:
     """Create a hatch over closed boundary *rings*.
 
     Salvaged from ``dxf_utils.create_hatch`` (boundaries first, then pattern),
-    decoupled from ``project_loader``.
+    decoupled from ``project_loader``. When the style carries a
+    ``layer_suffix`` the hatch lands on a separate ``"<geom_layer> <suffix>"``
+    layer (created on demand), leaving the geometry layer for outlines only.
     """
     if not rings:
         return None
+    layer_name = _hatch_layer_name(geom_layer, hs)
+    if layer_name not in doc.layers:
+        doc.layers.add(layer_name)
     hatch = msp.add_hatch(dxfattribs={"layer": layer_name})
     hatch.dxf.elevation = (0, 0, 0)
     for ring in rings:
@@ -318,7 +369,10 @@ def export_layers(
             written verbatim in this CRS.
         template_dxf: Optional template DXF opened as the base; its content is
             kept and our layers are added on top (title block, frame, linetypes).
-            ``None`` → a fresh document via :func:`new_dxf_document`.
+            ``None`` → if *out_dxf* already exists it is reopened and only the
+            previously emitted (provenance-tagged) entities are purged before
+            rewriting (idempotent re-export, foreign content preserved);
+            otherwise a fresh document via :func:`new_dxf_document`.
         dxfversion: DXF version for a fresh document (ignored when a template is
             given).
 
@@ -341,6 +395,12 @@ def export_layers(
         if not template_dxf.exists():
             raise FileNotFoundError(f"Template DXF not found: {template_dxf}")
         doc = ezdxf.readfile(str(template_dxf))
+    elif out_dxf.exists():
+        # Idempotent re-export: reopen the existing target, strip only what we
+        # wrote last time (by provenance), and rewrite — foreign layers/entities
+        # (hand-drawn in AutoCAD) survive across re-exports.
+        doc = ezdxf.readfile(str(out_dxf))
+        _purge_emitted(doc)
     else:
         doc = new_dxf_document(dxfversion)
 

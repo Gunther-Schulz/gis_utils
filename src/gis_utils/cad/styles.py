@@ -22,7 +22,8 @@ File shape::
       <style-name>:
         layer:  {color, linetype, lineweight, plot, locked, frozen, is_on,
                  transparency, linetype_scale}
-        hatch:  {pattern, scale, angle, color, transparency, individual}
+        hatch:  {pattern, scale, angle, color, transparency, individual,
+                 layer_suffix}
         text:   {color, height, font, max_width, attachment, rotation}
         entity: {close, linetype_scale, linetype_generation}
 
@@ -44,7 +45,8 @@ _LAYER_FIELDS = frozenset(
      "transparency", "linetype_scale"}
 )
 _HATCH_FIELDS = frozenset(
-    {"pattern", "scale", "angle", "color", "transparency", "individual"}
+    {"pattern", "scale", "angle", "color", "transparency", "individual",
+     "layer_suffix"}
 )
 _TEXT_FIELDS = frozenset(
     {"color", "height", "font", "max_width", "attachment", "rotation"}
@@ -88,6 +90,11 @@ class HatchStyle:
     color: object | None = None
     transparency: float | None = None
     individual: bool = False
+    # When set, the hatch is emitted on a separate target layer named
+    # ``"<target_layer> <layer_suffix>"`` (Georgendorf pattern
+    # "Baufeld Schraffur") instead of the geometry's own layer. ``None`` keeps
+    # the hatch on the geometry layer.
+    layer_suffix: str | None = None
 
 
 @dataclass(frozen=True)

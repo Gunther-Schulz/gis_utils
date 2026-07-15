@@ -104,7 +104,9 @@ def test_polygon_roundtrip(tmp_path):
     assert len(polylines) == 1
 
 
-def test_polygon_with_hatch(tmp_path):
+def test_polygon_with_hatch_on_separate_layer(tmp_path):
+    # Georgendorf muster: baufeld hatch carries layer_suffix "Schraffur", so the
+    # outline stays on "Baufeld" and the hatch lands on "Baufeld Schraffur".
     src = _gpkg(tmp_path, "baufeld", _square())
     out = tmp_path / "out.dxf"
     results = export_layers(
@@ -113,7 +115,11 @@ def test_polygon_with_hatch(tmp_path):
     )
     assert results[0].hatches == 1
     doc = ezdxf.readfile(str(out))
-    assert len(doc.modelspace().query('HATCH[layer=="Baufeld"]')) == 1
+    assert "Baufeld Schraffur" in doc.layers
+    assert len(doc.modelspace().query('HATCH[layer=="Baufeld"]')) == 0
+    assert len(doc.modelspace().query('HATCH[layer=="Baufeld Schraffur"]')) == 1
+    # The polygon outline stays on the geometry layer.
+    assert len(doc.modelspace().query('LWPOLYLINE[layer=="Baufeld"]')) == 1
 
 
 def test_line_and_point(tmp_path):
@@ -172,6 +178,48 @@ def test_template_content_kept(tmp_path):
     doc = ezdxf.readfile(str(out))
     assert len(doc.modelspace().query("LINE")) == 1  # template content kept
     assert "Geltungsbereich" in doc.layers
+
+
+def test_reexport_is_idempotent_and_keeps_foreign(tmp_path):
+    # First export, then draw a foreign entity into the DXF (as a human would in
+    # AutoCAD), then re-export: our layers are rewritten, the foreign line stays.
+    src = _gpkg(tmp_path, "geltung", _square())
+    out = tmp_path / "out.dxf"
+    export_layers(
+        [LayerSpec(src, "Geltungsbereich", "geltungsbereich")],
+        styles=FIXTURE, out_dxf=out, crs=CRS,
+    )
+    doc = ezdxf.readfile(str(out))
+    doc.modelspace().add_line((0, 0), (99, 99), dxfattribs={"layer": "HandDrawn"})
+    doc.saveas(str(out))
+
+    # Re-export the same layer.
+    export_layers(
+        [LayerSpec(src, "Geltungsbereich", "geltungsbereich")],
+        styles=FIXTURE, out_dxf=out, crs=CRS,
+    )
+    doc = ezdxf.readfile(str(out))
+    # Exactly one of our polylines (not doubled), and the foreign line survives.
+    assert len(doc.modelspace().query('LWPOLYLINE[layer=="Geltungsbereich"]')) == 1
+    assert len(doc.modelspace().query('LINE[layer=="HandDrawn"]')) == 1
+
+
+def test_invalid_lineweight_snaps_to_nearest(tmp_path):
+    from gis_utils.cad.styles import parse_styles
+
+    styles = parse_styles({
+        "schema_version": 1,
+        "styles": {"lw": {"layer": {"color": "green", "lineweight": 42}}},
+    })
+    src = _gpkg(tmp_path, "bg", _square())
+    out = tmp_path / "out.dxf"
+    results = export_layers(
+        [LayerSpec(src, "LW", "lw")], styles=styles, out_dxf=out, crs=CRS,
+    )
+    assert any("lineweight" in w and "snapped" in w for w in results[0].warnings)
+    doc = ezdxf.readfile(str(out))
+    # 42 is invalid; nearest valid enum value is 40.
+    assert doc.layers.get("LW").dxf.lineweight == 40
 
 
 def test_invalid_linetype_falls_back(tmp_path):

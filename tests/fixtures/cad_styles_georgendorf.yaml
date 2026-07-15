@@ -20,6 +20,7 @@ styles:
       color: vermilion-light
       transparency: 0.6
       individual: false
+      layer_suffix: Schraffur   # Georgendorf muster: hatch on "Baufeld Schraffur"
 
   baugrenze:
     layer:

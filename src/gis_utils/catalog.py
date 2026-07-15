@@ -17,6 +17,7 @@ _MODULES = [
     "gis_utils.wms",       # WMS vectorization
     "gis_utils.recipes",   # recipe management
     "gis_utils.geometry",  # geometry utilities
+    "gis_utils.operations", # ported vector ops (cleaning, filter, connect, dissolve-by-majority)
     "gis_utils.reporting", # area reports, markdown tables
     "gis_utils.alkis",     # Flurstück lookup
     "gis_utils.georef",    # feature-match georeferencing (DXF/local -> reference CRS)
