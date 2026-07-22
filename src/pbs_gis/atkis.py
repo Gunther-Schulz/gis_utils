@@ -481,7 +481,12 @@ def _attribute_filter_gdf(
                 .str.contains(str(v).lower(), regex=False)
         )
         mask = col_match if mask is None else (mask & col_match)
-    return gdf[mask].copy() if mask is not None else gdf.copy()
+    if mask is None:
+        raise RuntimeError(
+            f"keine der Klassifikationsspalten {list(conditions)} im WFS-Ergebnis "
+            f"— Filter nicht anwendbar (Schema-Drift?); kein ungefilterter Durchlass"
+        )
+    return gdf[mask].copy()
 
 
 # ---------------------------------------------------------------------------
